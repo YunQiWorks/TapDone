@@ -55,7 +55,7 @@ https://yunqiworks.github.io/TapDone/appcast.xml
 
 Sparkle 使用 SwiftPM 的动态框架嵌入机制。Debug 配置单独关闭 library validation，以便本地 ad-hoc 签名开发包加载该框架；Release 使用免费的 ad-hoc 签名并关闭 Hardened Runtime，避免无 Team ID 的签名触发 Sparkle library validation；不使用 Apple 证书或公证。
 
-`Config/Version.xcconfig` 保存展示版本和构建号，当前为 `0.2.2` / `4`。`Config/Updates.xcconfig` 保存更新地址和默认空公钥。需要让开发包检查真实更新时，可创建被 Git 忽略的 `Config/Updates.local.xcconfig`，配置同一公钥；该文件只放公钥，不放私钥或证书。
+`Config/Version.xcconfig` 保存展示版本和构建号，当前为 `0.2.3` / `5`。`Config/Updates.xcconfig` 保存更新地址和默认空公钥。需要让开发包检查真实更新时，可创建被 Git 忽略的 `Config/Updates.local.xcconfig`，配置同一公钥；该文件只放公钥，不放私钥或证书。
 
 CI 通过 xcodebuild 参数注入公钥、版本和订阅地址，覆盖本机配置。开发包与正式版需保持 Bundle Identifier `dev.sidetap.SideTap` 一致才能延续数据位置和更新身份。首个配置了更新公钥的发布版本仍需用户手动下载安装一次；此前未配置公钥的开发包不会自动获得更新能力。
 
@@ -69,8 +69,13 @@ CI 通过 xcodebuild 参数注入公钥、版本和订阅地址，覆盖本机�
    - Archive 时关闭 Xcode 自动签名，同时构建 arm64 与 x86_64，内含 CLI 和 Sparkle。
    - 从 Archive 复制应用，对 Mach-O 程序、嵌套框架与应用由内向外执行 ad-hoc 签名，校验完整性，再生成最终 ZIP；不使用 Developer ID 导出或 Apple 公证。
    - 对 ZIP 做 Sparkle 签名，并用配置公钥核验。
-   - 生成保留最近十版的 appcast，嵌入更新说明，签名并验证订阅文件。
+   - 生成仅包含最新版的 appcast，嵌入更新说明，签名并验证订阅文件。
 4. 工作流将 ZIP、SHA256SUMS、appcast.xml 发布到 GitHub Releases，再由 Pages job 发布已签名的订阅文件。
+5. Pages 部署成功后，自动清理旧 Release 及其附件，只保留最新发布和用户明确指定封存的版本；源码标签及提交保留。发布或更新源部署失败时，不清理旧版。
+
+### 封存版本
+
+`.github/archived-releases.json` 保存用户明确要求封存的版本标签，默认 `[]`。例如用户指定封存 `v0.2.3` 后，将其加入数组。每次发布前更新名单，清理任务按本次发布标签中的名单执行。封存版本保留 Release 和附件，但不加入自动更新订阅；订阅始终指向最新版。未封存的旧安装包会在下一次成功发布后删除。
 
 发布构建号使用 `1000 + GITHUB_RUN_NUMBER`，避免低于现有开发构建；必须一直递增。如仓库迁移或重建工作流导致计数重置，应调整基数，发布脚本会拒绝低于现有源的构建号。每次正式发布也需要更高的展示版本号。工作流串行发布，不覆盖已存在的 Release；标签已存在但无 Release 时可手动运行 workflow 并填写标签。
 
@@ -94,7 +99,7 @@ CI 通过 xcodebuild 参数注入公钥、版本和订阅地址，覆盖本机�
 - **Pages 部署失败**：已发布的安装包仍可下载；检查仓库 Pages Source 和 `github-pages` 环境的分支/标签部署策略，修复后重跑失败的 Pages job，不要重新覆盖已发布的 Release。
 - **Archive / 打包失败**：CI 会保存 `.release/*.log` 作为失败构建日志，不上传私钥。
 - **更新前备份失败**：先修复配置目录写入权限或空间，再点击继续安装。
-- **新版本出现问题**：用户可手动安装先前的签名版本。没有实现自动回滚；若新格式任务库不兼容旧版，先保留当前数据，再选用 Backups 中的副本进行人工恢复。
+- **新版本出现问题**：用户可手动安装已封存的先前签名版本；未封存版本的 Release 和安装包会被清理。没有实现自动回滚；若新格式任务库不兼容旧版，先保留当前数据，再选用 Backups 中的副本进行人工恢复。
 
 官方参考：[Sparkle 接入](https://sparkle-project.org/documentation/)、[发布更新](https://sparkle-project.org/documentation/publishing/)、[GitHub Pages 工作流](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
 

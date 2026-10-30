@@ -86,3 +86,19 @@ jobs:
       - name: Deploy signed appcast
         id: deployment
         uses: actions/deploy-pages@v4
+
+  prune-releases:
+    needs: deploy-feed
+    if: ${{ !inputs.prepare_only }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+      - name: Keep latest release and explicitly archived versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: python3 scripts/release/prune_releases.py --repository "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG"

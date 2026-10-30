@@ -187,7 +187,7 @@ def prepare(tag, build):
                                     "length": str(package.stat().st_size), "type": "application/octet-stream",
                                     "{" + NS + "}edSignature": signature})
     channel.insert(0, item)
-    for old in channel.findall("item")[10:]:
+    for old in channel.findall("item")[1:]:
         channel.remove(old)
     feed_root = ET.Element("rss", {"version": "2.0"})
     feed_root.append(channel)
