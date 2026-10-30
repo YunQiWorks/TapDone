@@ -510,6 +510,7 @@ private struct ActionEditor: View {
         if embedded { onClose?() } else { dismiss() }
     }
 
+    @MainActor
     private func chooseIcon() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg]
