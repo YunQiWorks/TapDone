@@ -128,7 +128,7 @@ private struct DockButton: View {
            let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: action.target) {
             return DockIconCache.image(forFile: url.path)
         }
-        if action.kind == .folder {
+        if action.kind == .folder || action.kind == .file {
             let path = (action.target as NSString).expandingTildeInPath
             let url = path.hasPrefix("/") ? URL(fileURLWithPath: path)
                 : FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(path)

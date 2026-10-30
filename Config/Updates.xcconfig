@@ -1,0 +1,7 @@
+#include "Version.xcconfig"
+
+// Public key only. Release CI supplies SPARKLE_PUBLIC_KEY from repository variables.
+SPARKLE_PUBLIC_KEY =
+// $() keeps the URL's // from being parsed as an xcconfig comment.
+SIDETAP_UPDATE_FEED_URL = https:/$()/yunqiworks.github.io/TapDone/appcast.xml
+#include? "Updates.local.xcconfig"

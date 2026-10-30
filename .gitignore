@@ -3,3 +3,10 @@ build/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+.build/
+.swiftpm/
+Config/Updates.local.xcconfig
+.release/
+*.p12
+*.p8
+*.key

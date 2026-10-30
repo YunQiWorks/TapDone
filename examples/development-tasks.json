@@ -1,0 +1,25 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "development.terminal",
+    "category": "开发工具",
+    "name": "终端",
+    "icon": "terminal",
+    "action": {
+      "type": "application",
+      "bundleIdentifier": "com.apple.Terminal"
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "development.sidetap-repository",
+    "category": "开发工具",
+    "name": "SideTap 仓库",
+    "icon": "globe",
+    "showInDock": false,
+    "action": {
+      "type": "website",
+      "url": "https://github.com/YunQiWorks/TapDone"
+    }
+  }
+]

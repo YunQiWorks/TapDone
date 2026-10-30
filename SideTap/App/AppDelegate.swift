@@ -1,9 +1,12 @@
 import AppKit
 import SwiftUI
+import Combine
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let store = AppStore()
+    lazy var updates = AppUpdateController(store: store)
+    private var librarySubscription: AnyCancellable?
     private var statusItem: NSStatusItem?
     private var taskMenuIsOpen = false
     private var panelController: PanelController?
@@ -16,14 +19,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        updates.start()
         panelController = PanelController(store: store)
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: "SideTap")
+        item.button?.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: "TapDone")
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
         statusItem = item
         rebuildTaskMenu(menu)
+        librarySubscription = store.$library.dropFirst().sink { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.panelController?.hide()
+                self?.resetGesture()
+            }
+        }
         showSettings()
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.sampleGesture() }
@@ -55,6 +65,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
         let settings = menu.addItem(withTitle: "设置…", action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
+        let update = menu.addItem(withTitle: "检查更新…", action: #selector(AppUpdateController.checkForUpdates(_:)), keyEquivalent: "")
+        update.target = updates
+        update.isEnabled = updates.canCheck
         menu.addItem(.separator())
         if store.categories.isEmpty {
             let empty = menu.addItem(withTitle: "暂无任务，请在设置中添加", action: nil, keyEquivalent: "")
@@ -85,7 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             group.submenu = submenu
         }
         menu.addItem(.separator())
-        menu.addItem(withTitle: "退出 SideTap", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "退出 TapDone", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
 
     @objc private func runMenuTask(_ sender: NSMenuItem) {
@@ -103,9 +116,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 620),
                                   styleMask: [.titled, .closable, .miniaturizable],
                                   backing: .buffered, defer: false)
-            window.title = "SideTap 设置"
+            window.title = "TapDone 设置"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView(store: store))
+            window.contentView = NSHostingView(rootView: SettingsView(store: store, updates: updates))
             window.center()
             settingsWindow = window
         }
@@ -166,7 +179,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        updates.applicationShouldTerminate()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         gestureTimer?.invalidate()
+        store.stopAllCommands()
     }
 }

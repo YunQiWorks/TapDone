@@ -6,7 +6,7 @@ struct SideTapApp: App {
 
     var body: some Scene {
         Settings {
-            SettingsView(store: delegate.store)
+            SettingsView(store: delegate.store, updates: delegate.updates)
         }
     }
 }

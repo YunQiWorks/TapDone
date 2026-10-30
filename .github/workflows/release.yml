@@ -1,0 +1,80 @@
+name: Publish TapDone
+
+on:
+  push:
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag, for example v0.2.0'
+        required: true
+        type: string
+
+concurrency:
+  group: sidetap-stable-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: macos-14
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+      - name: Confirm new tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git rev-parse --verify "refs/tags/$RELEASE_TAG"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'This release already exists; existing releases are not overwritten.'
+            exit 1
+          fi
+      - name: Build ad-hoc app and sign update
+        id: package
+        env:
+          SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          python3 scripts/release/prepare_release.py --tag "$RELEASE_TAG" --build "$((GITHUB_RUN_NUMBER + 1000))"
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZIP_NAME: ${{ steps.package.outputs.zip_name }}
+        run: |
+          gh release create "$RELEASE_TAG" ".release/dist/$ZIP_NAME" .release/dist/SHA256SUMS .release/site/appcast.xml --verify-tag --title "TapDone $RELEASE_TAG" --notes-file .release/release-notes.md
+      - name: Preserve build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build-logs
+          path: .release/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload signed feed for Pages
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .release/site
+
+  deploy-feed:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy signed appcast
+        id: deployment
+        uses: actions/deploy-pages@v4

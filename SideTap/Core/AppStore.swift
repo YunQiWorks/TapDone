@@ -40,36 +40,34 @@ enum ActivationEdge: String, CaseIterable, Identifiable {
 
 @MainActor
 final class AppStore: ObservableObject {
-    @Published private(set) var library: TaskLibrary {
-        didSet { persistLibrary() }
-    }
+    @Published private(set) var library = TaskLibrary()
+    @Published private(set) var storageError = ""
     var categories: [TaskCategory] { library.categories }
-    var actions: [QuickAction] { categories.flatMap(\.tasks) }
-    // Dock order follows category order and the task order within each category.
+    var actions: [QuickAction] { library.actions }
+    var libraryURL: URL { repository.libraryURL }
+    var cliURL: URL { Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/sidetap") }
     var dockActions: [QuickAction] {
         let pinned = Set(library.dockTaskIDs)
         return actions.filter { pinned.contains($0.id) }
     }
     func isInDock(_ id: String) -> Bool { library.dockTaskIDs.contains(id) }
     @Published var message = ""
+    @Published var updateInstallationPending = false
+    var runningCommandCount: Int { commandRuns.filter { $0.state == .running }.count }
+    @Published private(set) var commandRuns: [CommandRun] = []
+    private let commandRunner = CommandRunner()
     @Published var gestureEnabled: Bool { didSet { defaults.set(gestureEnabled, forKey: "gestureEnabled") } }
     @Published var activationEdge: ActivationEdge { didSet { defaults.set(activationEdge.rawValue, forKey: "activationEdge") } }
     @Published var edgeRange: Double { didSet { defaults.set(edgeRange, forKey: "edgeRange") } }
     @Published var dwellTime: Double { didSet { defaults.set(dwellTime, forKey: "dwellTime") } }
     private let defaults: UserDefaults
+    private let repository: TaskRepository
     private let executor = ActionExecutor()
+    private var libraryWatcher: DispatchSourceFileSystemObject?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if let data = defaults.data(forKey: "taskLibrary"),
-           let saved = try? JSONDecoder().decode(TaskLibrary.self, from: data), saved.isValid {
-            library = saved
-        } else {
-            let old = defaults.data(forKey: "quickActions")
-                .flatMap { try? JSONDecoder().decode([QuickAction].self, from: $0) }
-            let tasks = old.flatMap { Set($0.map(\.id)).count == $0.count ? $0 : nil } ?? QuickAction.examples
-            library = TaskLibrary(categories: [TaskCategory(id: "default", name: "常用", tasks: tasks)], dockTaskIDs: tasks.map(\.id))
-        }
+        repository = TaskRepository(legacyDefaults: defaults)
         defaults.register(defaults: ["gestureEnabled": true, "edgeRange": 12.0, "dwellTime": 0.4])
         gestureEnabled = defaults.bool(forKey: "gestureEnabled")
         let edgeValue = defaults.string(forKey: "activationEdge") ?? defaults.string(forKey: "gestureDirection") ?? "left"
@@ -78,13 +76,56 @@ final class AppStore: ObservableObject {
         edgeRange = range.isFinite ? min(max(range, 2), 120) : 12
         let dwell = defaults.double(forKey: "dwellTime")
         dwellTime = dwell.isFinite ? min(max(dwell, 0.1), 2) : 0.4
-        persistLibrary()
+        do { library = try repository.read(createIfMissing: true) }
+        catch { storageError = error.localizedDescription }
+        watchLibrary()
     }
 
-    private func persistLibrary() {
-        if let data = try? JSONEncoder().encode(library) {
-            defaults.set(data, forKey: "taskLibrary")
+    deinit { libraryWatcher?.cancel() }
+
+    private func watchLibrary() {
+        // Watch the directory rather than library.json: atomic saves replace the inode.
+        let descriptor = open(repository.directoryURL.path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .rename, .delete], queue: .main)
+        source.setEventHandler { [weak self] in
+            Task { @MainActor [weak self] in self?.refreshLibrary() }
         }
+        source.setCancelHandler { close(descriptor) }
+        libraryWatcher = source
+        source.resume()
+    }
+
+    func refreshLibrary() {
+        do {
+            let latest = try repository.read()
+            if latest != library { library = latest }
+            storageError = ""
+        } catch { storageError = error.localizedDescription }
+    }
+
+    @discardableResult
+    private func modify(expectedRevision: UInt64? = nil, _ change: (inout TaskLibrary) throws -> Void) -> Bool {
+        do {
+            library = try repository.transaction(expectedRevision: expectedRevision, change)
+            storageError = ""
+            return true
+        } catch {
+            storageError = error.localizedDescription
+            return false
+        }
+    }
+
+    func importTasks(from url: URL) {
+        do {
+            let data = try Data(contentsOf: url)
+            guard data.count <= 16 * 1024 * 1024 else { throw SideTapError("INPUT_TOO_LARGE", "输入文件不能超过 16 MB。") }
+            let documents = try TaskDocument.decode(data)
+            var result = ApplyResult()
+            if modify({ result = try $0.apply(documents) }) {
+                message = "已添加 \(result.created.count) 个任务，更新 \(result.updated.count) 个任务。"
+            }
+        } catch { storageError = error.localizedDescription }
     }
 
     func categoryID(for taskID: String) -> String? {
@@ -94,69 +135,103 @@ final class AppStore: ObservableObject {
     func saveCategory(id: String?, name: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        var next = library
-        if let id, let index = next.categories.firstIndex(where: { $0.id == id }) {
-            next.categories[index].name = name
-        } else {
-            next.categories.append(TaskCategory(id: UUID().uuidString, name: name, tasks: []))
+        modify { next in
+            guard !next.categories.contains(where: { $0.id != id && $0.name == name }) else {
+                throw SideTapError("DUPLICATE_CATEGORY", "分类名称已存在。")
+            }
+            if let id {
+                guard let index = next.categories.firstIndex(where: { $0.id == id }) else { throw SideTapError("CATEGORY_NOT_FOUND", "分类已被移除。") }
+                next.categories[index].name = name
+            } else { next.categories.append(TaskCategory(id: UUID().uuidString, name: name)) }
         }
-        library = next
     }
 
     func deleteCategory(_ id: String) {
-        var next = library
-        let removed = Set(next.categories.first(where: { $0.id == id })?.tasks.map(\.id) ?? [])
-        next.categories.removeAll { $0.id == id }
-        next.dockTaskIDs.removeAll { removed.contains($0) }
-        library = next
+        modify { next in
+            let removed = Set(next.categories.first(where: { $0.id == id })?.tasks.map(\.id) ?? [])
+            next.categories.removeAll { $0.id == id }
+            next.dockTaskIDs.removeAll { removed.contains($0) }
+        }
     }
 
     func moveCategory(_ id: String, by offset: Int) {
-        var next = library
-        guard let index = next.categories.firstIndex(where: { $0.id == id }),
-              next.categories.indices.contains(index + offset) else { return }
-        next.categories.swapAt(index, index + offset)
-        library = next
+        modify { next in
+            guard let index = next.categories.firstIndex(where: { $0.id == id }),
+                  next.categories.indices.contains(index + offset) else { return }
+            next.categories.swapAt(index, index + offset)
+        }
     }
 
-    func save(_ action: QuickAction, categoryID: String, inDock: Bool) {
-        var next = library
-        guard let destination = next.categories.firstIndex(where: { $0.id == categoryID }) else { return }
-        let oldIndex = next.categories[destination].tasks.firstIndex { $0.id == action.id }
-        for index in next.categories.indices {
-            next.categories[index].tasks.removeAll { $0.id == action.id }
+    @discardableResult
+    func save(_ action: QuickAction, categoryID: String, inDock: Bool, expectedRevision: UInt64) -> Bool {
+        modify(expectedRevision: expectedRevision) { next in
+            guard let destination = next.categories.firstIndex(where: { $0.id == categoryID }) else {
+                throw SideTapError("CATEGORY_NOT_FOUND", "分类已被移除，请重新选择。")
+            }
+            let oldIndex = next.categories[destination].tasks.firstIndex { $0.id == action.id }
+            for index in next.categories.indices { next.categories[index].tasks.removeAll { $0.id == action.id } }
+            next.categories[destination].tasks.insert(action, at: oldIndex ?? next.categories[destination].tasks.count)
+            if inDock {
+                if !next.dockTaskIDs.contains(action.id) { next.dockTaskIDs.append(action.id) }
+            } else { next.dockTaskIDs.removeAll { $0 == action.id } }
         }
-        next.categories[destination].tasks.insert(action, at: oldIndex ?? next.categories[destination].tasks.count)
-        next.dockTaskIDs.removeAll { $0 == action.id }
-        if inDock { next.dockTaskIDs.append(action.id) }
-        library = next
     }
 
     func setInDock(_ id: String, enabled: Bool) {
-        guard actions.contains(where: { $0.id == id }) else { return }
-        var next = library
-        next.dockTaskIDs.removeAll { $0 == id }
-        if enabled { next.dockTaskIDs.append(id) }
-        library = next
+        modify { next in
+            guard next.actions.contains(where: { $0.id == id }) else { throw SideTapError("TASK_NOT_FOUND", "任务已被移除。") }
+            if enabled {
+                if !next.dockTaskIDs.contains(id) { next.dockTaskIDs.append(id) }
+            } else { next.dockTaskIDs.removeAll { $0 == id } }
+        }
     }
 
     func deleteTask(_ id: String) {
-        var next = library
-        for index in next.categories.indices { next.categories[index].tasks.removeAll { $0.id == id } }
-        next.dockTaskIDs.removeAll { $0 == id }
-        library = next
+        modify { next in
+            for index in next.categories.indices { next.categories[index].tasks.removeAll { $0.id == id } }
+            next.dockTaskIDs.removeAll { $0 == id }
+        }
     }
 
     func move(_ id: String, by offset: Int) {
-        var next = library
-        guard let category = next.categories.firstIndex(where: { $0.tasks.contains { $0.id == id } }),
-              let index = next.categories[category].tasks.firstIndex(where: { $0.id == id }),
-              next.categories[category].tasks.indices.contains(index + offset) else { return }
-        next.categories[category].tasks.swapAt(index, index + offset)
-        library = next
+        modify { next in
+            guard let category = next.categories.firstIndex(where: { $0.tasks.contains { $0.id == id } }),
+                  let index = next.categories[category].tasks.firstIndex(where: { $0.id == id }),
+                  next.categories[category].tasks.indices.contains(index + offset) else { return }
+            next.categories[category].tasks.swapAt(index, index + offset)
+        }
     }
 
+    func stopCommand(_ runID: String) { commandRunner.stop(runID) }
+    func stopAllCommands() { commandRunner.stopAll() }
+
     func run(_ action: QuickAction) {
+        guard !updateInstallationPending else {
+            message = "更新正在等待安装，暂时无法启动新任务。"
+            return
+        }
+        if action.kind == .command || action.kind == .external {
+            guard !commandRuns.contains(where: { $0.taskID == action.id && $0.state == .running }) else {
+                message = "“\(action.title)”正在运行，请在运行记录中查看。"
+                return
+            }
+            do {
+                let run = try commandRunner.start(action) { [weak self] completed in
+                    guard let self, let index = self.commandRuns.firstIndex(where: { $0.id == completed.id }) else { return }
+                    self.commandRuns[index] = completed
+                    self.message = "“\(completed.title)”\(completed.state.rawValue)"
+                }
+                commandRuns.insert(run, at: 0)
+                message = "已开始“\(action.title)”，可在运行记录中查看输出。"
+            } catch {
+                message = "无法启动“\(action.title)”：\(error.localizedDescription)"
+                let alert = NSAlert()
+                alert.messageText = "命令启动失败"
+                alert.informativeText = message
+                alert.runModal()
+            }
+            return
+        }
         Task {
             do {
                 try await executor.execute(action)

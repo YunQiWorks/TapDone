@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SideTap task or batch",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/task"
+    },
+    {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    }
+  ],
+  "$defs": {
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "id",
+        "category",
+        "name",
+        "action"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "icon": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "showInDock": {
+          "type": "boolean"
+        },
+        "action": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "bundleIdentifier"
+              ],
+              "properties": {
+                "type": {
+                  "const": "application"
+                },
+                "bundleIdentifier": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]+$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "url"
+              ],
+              "properties": {
+                "type": {
+                  "const": "website"
+                },
+                "url": {
+                  "type": "string",
+                  "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://",
+                  "format": "uri"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "path"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "open",
+                    "folder",
+                    "file"
+                  ]
+                },
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "command",
+                "workingDirectory"
+              ],
+              "properties": {
+                "type": {
+                  "const": "command"
+                },
+                "command": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "workingDirectory": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "timeoutSeconds": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 86400,
+                  "default": 300
+                },
+                "environment": {
+                  "type": "object",
+                  "propertyNames": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "executable",
+                "workingDirectory"
+              ],
+              "properties": {
+                "type": {
+                  "const": "external"
+                },
+                "executable": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "arguments": {
+                  "type": "array",
+                  "maxItems": 4096,
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "input": {},
+                "workingDirectory": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "timeoutSeconds": {
+                  "type": "number",
+                  "minimum": 1,
+                  "maximum": 86400,
+                  "default": 300
+                },
+                "environment": {
+                  "type": "object",
+                  "propertyNames": {
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -15,6 +15,8 @@ struct ActionExecutor {
 
     func execute(_ action: QuickAction) async throws {
         switch action.kind {
+        case .command, .external:
+            throw SideTapError("INVALID_EXECUTOR", "命令任务需由 CommandRunner 执行。")
         case .application:
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: action.target) else {
                 throw ExecutionError.missingApplication
@@ -26,10 +28,10 @@ struct ActionExecutor {
                 throw ExecutionError.invalidTarget
             }
             guard NSWorkspace.shared.open(url) else { throw ExecutionError.openFailed }
-        case .folder:
+        case .folder, .file:
             let expanded = (action.target as NSString).expandingTildeInPath
             let url = expanded.hasPrefix("/")
-                ? URL(fileURLWithPath: expanded, isDirectory: true)
+                ? URL(fileURLWithPath: expanded, isDirectory: action.kind == .folder)
                 : FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(expanded)
             guard NSWorkspace.shared.open(url) else { throw ExecutionError.openFailed }
         }

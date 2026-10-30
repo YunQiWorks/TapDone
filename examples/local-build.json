@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "build.local-project",
+  "category": "打包",
+  "name": "本机打包（请修改命令）",
+  "icon": "hammer",
+  "showInDock": false,
+  "action": {
+    "type": "command",
+    "command": "bash ./build.sh",
+    "workingDirectory": "~/",
+    "timeoutSeconds": 1800,
+    "environment": {
+      "BUILD_CONFIGURATION": "Release"
+    }
+  }
+}
