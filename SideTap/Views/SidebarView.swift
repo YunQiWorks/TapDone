@@ -123,6 +123,7 @@ private struct DockButton: View {
     let hovered: Bool
     let perform: () -> Void
 
+    @MainActor
     private var nativeIcon: CGImage? {
         if action.kind == .application,
            let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: action.target) {
