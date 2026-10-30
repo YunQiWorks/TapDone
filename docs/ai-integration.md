@@ -2,13 +2,13 @@
 
 ## CLI 获取方式
 
-Xcode 的 TapDone scheme 会同时构建 TapDoneCLI 并打包到 `SideTap.app/Contents/Helpers/sidetap`。在设置的“AI 接入”页复制实际路径，然后使用带引号的完整路径调用。无需运行额外服务。
+Xcode 的 TapDone scheme 会同时构建 TapDoneCLI 并打包到 `TapDone.app/Contents/Helpers/tapdone`。在设置的“AI 接入”页复制实际路径，然后使用带引号的完整路径调用。无需运行额外服务。主命令现为 `tapdone`；应用同时保留 `Contents/Helpers/sidetap` 软链接兼容旧接入，已有任务库不迁移目录。
 
 也可以在源码目录按需自行构建独立 CLI：
 
 ```bash
-swift build -c release --product sidetap
-.build/release/sidetap help
+swift build -c release --product tapdone
+.build/release/tapdone help
 ```
 
 如需使用简短命令，可自行把生成的可执行文件安装到 PATH 中的目录。此工程不自动修改 PATH 或全局 AI 配置。
@@ -16,13 +16,13 @@ swift build -c release --product sidetap
 ## 命令
 
 ```bash
-sidetap paths
-sidetap schema
-sidetap categories list
-sidetap tasks list
-sidetap tasks validate --file task.json
-sidetap tasks apply --file task.json --if-revision 3
-sidetap tasks update development.open-sidetap --dock true --if-revision 4
+tapdone paths
+tapdone schema
+tapdone categories list
+tapdone tasks list
+tapdone tasks validate --file task.json
+tapdone tasks apply --file task.json --if-revision 3
+tapdone tasks update development.open-tapdone --dock true --if-revision 4
 ```
 
 `--if-revision` 可选，但推荐 AI 在读取任务库后携带，以免覆盖过期编辑。`validate` 也可携带该参数。CLI 只负责管理任务，不提供运行任务命令。
@@ -33,7 +33,7 @@ sidetap tasks update development.open-sidetap --dock true --if-revision 4
 
 ## 任务格式
 
-完整规范见 [task.schema.json](task.schema.json)，也可运行 `sidetap schema` 获取同一规范。示例在 [examples](../examples)。`schemaVersion` 是交换格式版本，`formatVersion` 是内部任务库版本，二者不要混用。
+完整规范见 [task.schema.json](task.schema.json)，也可运行 `tapdone schema` 获取同一规范。示例在 [examples](../examples)。`schemaVersion` 是交换格式版本，`formatVersion` 是内部任务库版本，二者不要混用。
 
 | action.type | 必需字段 | 说明 |
 |---|---|---|
@@ -61,7 +61,7 @@ sidetap tasks update development.open-sidetap --dock true --if-revision 4
 
 不具备本机命令能力的 AI 可以生成 JSON 文件，再由用户从设置的“任务”页导入。导入同样走共享校验和批量写入。
 
-源码提供 [.agents/skills/sidetap-tasks](../.agents/skills/sidetap-tasks/SKILL.md)，可由支持项目级 Skill 的 AI 工具读取。也可按所用工具的安装方式复制整个技能目录。此版本不自动安装到全局、不发布 SkillHub，也不提供 MCP 服务。
+源码提供 [.agents/skills/tapdone-tasks](../.agents/skills/tapdone-tasks/SKILL.md)，可由支持项目级 Skill 的 AI 工具读取。也可按所用工具的安装方式复制整个技能目录。此版本不自动安装到全局、不发布 SkillHub，也不提供 MCP 服务。
 
 ## 本机命令与脚本
 
@@ -69,10 +69,18 @@ sidetap tasks update development.open-sidetap --dock true --if-revision 4
 
 命令通过 `/bin/zsh -lc` 执行，包含登录 shell 配置，但不提供交互式终端输入，stdin 为 `/dev/null`。需要交互密码或人工确认的脚本需先调整为适用的执行方式。命令及环境变量保存在本机 library.json 中；工作目录在校验和实际启动时均检查，具体命令是否有效只能由执行结果判断，`validate` 不会运行它。
 
-创建、导入、apply 不启动命令。由用户点击 Dock、菜单栏子任务或设置中的“执行”启动。运行中同一任务禁止重复启动。设置中的“运行记录”显示本次启动以来的状态、退出码、日志入口和停止按钮；退出应用会停止仍在运行的命令。
+创建、导入、apply 不启动命令。由用户点击 Dock、菜单栏子任务或设置中的“执行”启动。运行中同一任务禁止重复启动。设置中的“运行记录”显示跨重启保存的状态、退出码、日志入口和停止按钮；退出应用会停止仍在运行的命令。
 
 每次命令拥有独立进程组，取消/超时先发送 SIGTERM，一秒后对仍存在的进程组发送 SIGKILL；退出应用直接停止所有任务。主动自行脱离进程组的守护进程不属于此控制范围。stdout/stderr 直接合并写入配置目录 `Logs/<run-id>.log`，避免输出管道阻塞；日志持久保留，运行列表暂不跨应用重启恢复。停止状态为 cancelled，超时状态为 timedOut；普通命令按退出码判断成功或失败。
 
 ## 通用外部扩展
 
 新增业务能力优先通过 `external` 接口，由 AI 生成脚本与 JSON input，而不是每次添加原生任务类型。协议与完整示例见 [通用外部扩展协议](external-protocol.md)。外部程序通过 stdin/stdout 交换版本化 JSON、通过 stderr 写日志，沿用运行状态、超时和停止控制；新增能力无需重新编译应用。首次获得该协议需要更新一次应用。
+
+所有现有任务类型现在共用运行实例与持久化历史。打开应用、网站、文件的成功仅表示系统接受打开请求，不代表后续业务完成；这些请求不提供停止按钮。远程异步作业可通过 asyncOptions 配置，上下游流程可在设置“流程”页导入并执行。
+
+为新任务声明 `action.inputContract`、`action.outputContract` 可提前约束输入和成功输出；新 external 推荐设置 `protocolVersion:2` 并原样回传 taskID、runID。仅支持 [约束说明](payload-contracts.md)列出的规则，不要生成未支持的 JSON Schema 关键字。
+
+远程打包等异步任务参照 [异步任务协议](remote-async-tasks.md)，脚本必须区分 submit 与只查询的 poll；不要将提交确认当作最终成功，也不要在 poll 中重新提交。
+
+流程定义的前置检查使用 `tapdone workflow validate --file <path|->`，节点须引用已存在且带输入输出约束的 v2 external。详见 [流程与复核模型](workflows.md)。该 CLI 命令仅校验；实际导入、执行和复核在设置“流程”页完成。

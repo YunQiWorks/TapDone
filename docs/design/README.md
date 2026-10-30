@@ -4,8 +4,8 @@
 
 - `icon-concept-v1.png`：用户选定的概念预览原图。
 - `app-icon-v1.png`：用于导出应用图标的透明背景母版。
-- `../../SideTap/Resources/Assets.xcassets/AppIcon.appiconset/`：macOS 16–1024 像素图标，已配置到应用 target。
-- `../../SideTap/Resources/Assets.xcassets/MenuBarIcon.imageset/`：手工绘制的简化 SVG 轮廓，使用 template 渲染适应菜单栏深浅外观。
+- `../../TapDone/Resources/Assets.xcassets/AppIcon.appiconset/`：macOS 16–1024 像素图标，已配置到应用 target。
+- `../../TapDone/Resources/Assets.xcassets/MenuBarIcon.imageset/`：手工绘制的简化 SVG 轮廓，使用 template 渲染适应菜单栏深浅外观。
 
 图像使用内置 image_gen 生成。透明母版的编辑提示词：
 

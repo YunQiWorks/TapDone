@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "release.build-and-publish",
+  "name": "打包、复核并发布",
+  "nodes": [
+    {
+      "id": "build",
+      "name": "提交并等待打包",
+      "kind": "task",
+      "taskID": "build.remote"
+    },
+    {
+      "id": "review",
+      "name": "检查打包产物后决定是否发布",
+      "kind": "review",
+      "dependsOn": ["build"]
+    },
+    {
+      "id": "publish",
+      "name": "发布已复核的产物",
+      "kind": "task",
+      "taskID": "publish.artifact",
+      "dependsOn": ["build", "review"],
+      "inputBindings": {
+        "artifact": {"nodeID": "build", "path": ["artifact"]}
+      }
+    }
+  ]
+}

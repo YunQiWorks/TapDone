@@ -118,13 +118,13 @@ def prepare(tag, build):
     if channel is None:
         raise RuntimeError("appcast 模板缺少 channel。")
     print("发布配置和更新源检查完成，开始构建 " + version, flush=True)
-    archive = WORK / "SideTap.xcarchive"
+    archive = WORK / "TapDone.xcarchive"
     if archive.exists():
         shutil.rmtree(archive)
     # No provisioning profile, Apple account, Developer ID or notarization needed.
     # Ad-hoc signatures have no Team ID: disable hardened runtime/library validation
     # so the application can load the bundled Sparkle framework.
-    run(["xcodebuild", "archive", "-project", ROOT / "SideTap.xcodeproj", "-scheme", "SideTap",
+    run(["xcodebuild", "archive", "-project", ROOT / "TapDone.xcodeproj", "-scheme", "TapDone",
          "-configuration", "Release", "-destination", "generic/platform=macOS", "-archivePath", archive,
          "-derivedDataPath", WORK / "DerivedData", "-clonedSourcePackagesDirPath", WORK / "SourcePackages",
          "-onlyUsePackageVersionsFromResolvedFile", "CODE_SIGN_STYLE=Manual", "CODE_SIGN_IDENTITY=-",
@@ -142,8 +142,11 @@ def prepare(tag, build):
     info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
     if info.get("SUPublicEDKey") != public_key or info.get("SUFeedURL") != feed_url:
         raise RuntimeError("应用中的公钥或更新地址与发布配置不一致。")
-    if not (app / "Contents/Helpers/sidetap").is_file():
+    if not (app / "Contents/Helpers/tapdone").is_file():
         raise RuntimeError("应用缺少内置 CLI。")
+    legacy_cli = app / "Contents/Helpers/sidetap"
+    if not legacy_cli.is_symlink() or legacy_cli.readlink() != Path("tapdone") or not legacy_cli.is_file():
+        raise RuntimeError("应用缺少旧 CLI 名称的兼容链接。")
     if not (app / "Contents/Frameworks/Sparkle.framework").is_dir():
         raise RuntimeError("应用缺少 Sparkle 框架。")
     # Sign inside out after archiving, avoiding Xcode 15 CLI entitlement signing.

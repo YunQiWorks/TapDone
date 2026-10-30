@@ -12,9 +12,9 @@
   },
   {
     "schemaVersion": 1,
-    "id": "development.sidetap-repository",
+    "id": "development.tapdone-repository",
     "category": "开发工具",
-    "name": "SideTap 仓库",
+    "name": "TapDone 仓库",
     "icon": "globe",
     "showInDock": false,
     "action": {

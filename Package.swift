@@ -2,11 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "SideTapTools",
+    name: "TapDoneTools",
     platforms: [.macOS(.v13)],
-    products: [.executable(name: "sidetap", targets: ["SideTapCLI"])],
+    products: [.executable(name: "tapdone", targets: ["TapDoneCLI"]),
+               .executable(name: "sidetap", targets: ["TapDoneCLI"])],
     targets: [
-        .target(name: "SideTapCore", path: "SideTap/Core", exclude: ["AppStore.swift"]),
-        .executableTarget(name: "SideTapCLI", dependencies: ["SideTapCore"], path: "CommandLine")
+        .target(name: "TapDoneCore", path: "TapDone/Core", exclude: ["AppStore.swift"]),
+        .executableTarget(name: "TapDoneCLI", dependencies: ["TapDoneCore"], path: "CommandLine")
     ]
 )

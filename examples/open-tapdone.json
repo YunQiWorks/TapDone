@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "development.open-tapdone",
+  "category": "开发工具",
+  "name": "打开 TapDone 工程",
+  "icon": "hammer",
+  "showInDock": true,
+  "action": {
+    "type": "open",
+    "path": "~/Documents/TapDone/TapDone.xcodeproj"
+  }
+}

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="SideTap/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png" alt="TapDone 应用图标" width="128" height="128">
+  <img src="TapDone/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png" alt="TapDone 应用图标" width="128" height="128">
 </p>
 
 # 即达 · TapDone

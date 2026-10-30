@@ -6,11 +6,11 @@
 
 ## 开始
 
-使用 Xcode 15 或更新版本打开 `SideTap.xcodeproj`，选择 TapDone scheme。最低支持 macOS 13。发布使用免费 ad-hoc 签名，无需 Apple Developer 账号；Bundle Identifier 为 `dev.sidetap.SideTap`。
+使用 Xcode 15 或更新版本打开 `TapDone.xcodeproj`，选择 TapDone scheme。最低支持 macOS 13。发布使用免费 ad-hoc 签名，无需 Apple Developer 账号；Bundle Identifier 为 `dev.sidetap.SideTap`。
 
 ## 交互
 
-- 启动显示设置窗口；菜单栏按分类提供全部任务，可直接执行。
+- 启动显示管理主界面：左侧导航与分类任务树，右侧任务详情和编辑工作区；菜单栏按分类提供全部任务，可直接执行。
 - 在“边缘唤出”中选择上、下、左、右边缘或四个角之一，设置触发范围（2–120 点）和停留时间（0.1–2 秒）。默认左边缘、12 点、0.4 秒。
 - 只检测鼠标是否处于触发区域，不检测滑动、幅度或速度。边缘范围为条带宽度，角落范围为正方形边长；区域内移动不重置计时，离开区域后重新计时。
 - 上下边缘展示横向 Dock，左右边缘展示居中的竖向 Dock；角落展示靠近对应角落的竖向 Dock。名称标签始终朝屏幕内侧显示。
@@ -46,23 +46,23 @@
 
 ## AI 添加任务
 
-应用内“设置 → AI 接入”提供随应用打包的 `sidetap` CLI 路径。AI 可通过 CLI 查询、校验、添加或更新任务，应用自动同步；也可在“任务”页导入 JSON 文件。创建任务不执行任务。
+应用内“设置 → AI 接入”提供随应用打包的 `tapdone` CLI 路径。AI 可通过 CLI 查询、校验、添加或更新任务，应用自动同步；也可在“任务”页导入 JSON 文件。创建任务不执行任务。
 
 ```bash
-sidetap tasks list
-sidetap tasks validate --file examples/development-tasks.json
-sidetap tasks apply --file examples/development-tasks.json
+tapdone tasks list
+tapdone tasks validate --file examples/development-tasks.json
+tapdone tasks apply --file examples/development-tasks.json
 ```
 
-具体 CLI 调用、独立构建方式、JSON 协议、存储迁移和并发规则见 [AI 接入说明](ai-integration.md)。提供 [JSON Schema](task.schema.json)、[示例任务](../examples)和 [AI Skill](../.agents/skills/sidetap-tasks/SKILL.md)。目前支持应用、网址、文件夹、文件以及本机命令/脚本；命令包含工作目录、环境变量和超时配置。设置的“运行记录”提供状态、退出码、日志及停止操作。多步骤工作流暂未接入。
+具体 CLI 调用、独立构建方式、JSON 协议、存储迁移和并发规则见 [AI 接入说明](ai-integration.md)。提供 [JSON Schema](task.schema.json)、[示例任务](../examples)和 [AI Skill](../.agents/skills/tapdone-tasks/SKILL.md)。目前支持应用、网址、文件夹、文件以及本机命令/脚本；命令包含工作目录、环境变量和超时配置。设置的“运行记录”提供状态、退出码、日志及停止操作。流程编排和人工复核见 [流程说明](workflows.md)。
 
 ### 命令任务
 
-AI 可通过 `action.type: "command"` 添加本机打包或其他脚本。示例见 [local-build.json](../examples/local-build.json)，执行规则见 [AI 接入说明](ai-integration.md#本机命令与脚本)。保存不会执行，点击任务后后台运行，同一任务运行中不重复启动。应用运行列表只保留本次会话，输出日志保存在 `~/Library/Application Support/SideTap/Logs/`。
+AI 可通过 `action.type: "command"` 添加本机打包或其他脚本。示例见 [local-build.json](../examples/local-build.json)，执行规则见 [AI 接入说明](ai-integration.md#本机命令与脚本)。保存不会执行，点击任务后后台运行，同一任务运行中不重复启动。全部任务的运行记录跨重启保存，输出日志保存在 `~/Library/Application Support/SideTap/Logs/`。
 
 ### 不重新编译的外部扩展
 
-`external` 是稳定的通用程序接口：AI 在 `sidetap paths` 返回的脚本目录中生成实现，通过任务配置指定程序、参数和任意 JSON input。TapDone 负责启动、日志、结果、超时与停止，具体功能由脚本提供。脚本更新在下一次执行生效，不需重启或重新编译应用。只需首次更新到包含此接口的版本。
+`external` 是稳定的通用程序接口：AI 在 `tapdone paths` 返回的脚本目录中生成实现，通过任务配置指定程序、参数和任意 JSON input。TapDone 负责启动、日志、结果、超时与停止，具体功能由脚本提供。脚本更新在下一次执行生效，不需重启或重新编译应用。只需首次更新到包含此接口的版本。
 
 详细协议见 [external-protocol.md](external-protocol.md)，随源码提供 [toolbox 扩展示例](../examples/extensions/toolbox)。将示例目录复制到 `scripts/toolbox` 后，按实际环境确认解释器路径，再通过 CLI 导入其中的 task.json。设置支持编辑通用程序及 JSON 参数，运行记录可查看结构化结果。
 
@@ -74,4 +74,25 @@ AI 可通过 `action.type: "command"` 添加本机打包或其他脚本。示例
 
 ## 名称与兼容性
 
-产品名称为“即达 · TapDone”，应用包为 `TapDone.app`。为保持旧任务、AI 接入和更新源兼容，工程目录与 scheme 仍为 `SideTap`，Bundle Identifier 保持 `dev.sidetap.SideTap`，CLI 保持 `sidetap`，数据目录保持 `~/Library/Application Support/SideTap/`。GitHub 仓库使用 `YunQiWorks/TapDone`，Pages 更新地址为 `https://yunqiworks.github.io/TapDone/appcast.xml`。
+产品名称为“即达 · TapDone”，应用包为 `TapDone.app`。工程为 `TapDone.xcodeproj`，源码目录为 `TapDone/`，scheme/应用 target 为 `TapDone`，CLI target 为 `TapDoneCLI`，SwiftPM 模块为 `TapDoneCore`，主命令为 `tapdone`，AI Skill 为 `tapdone-tasks`。GitHub 仓库使用 `YunQiWorks/TapDone`，Pages 更新地址为 `https://yunqiworks.github.io/TapDone/appcast.xml`。
+
+以下旧标识专用于兼容，不代表产品仍使用旧名称：
+
+- Bundle Identifier 保持 `dev.sidetap.SideTap`；数据目录与 UserDefaults 身份保持原值，已有任务、运行记录和图标不会因为改名而换到空目录。
+- 应用内 `Contents/Helpers/sidetap` 是指向 `tapdone` 的兼容软链接，SwiftPM 仍提供旧名产品。旧的完整 CLI 路径可以继续使用。
+- 外部脚本环境同时提供 `TAPDONE_*` 和同值的 `SIDETAP_*` 协议变量，均由应用设置。
+- 更新地址配置保留 `SIDETAP_UPDATE_FEED_URL` 键，已有本机覆盖文件不必重配；Sparkle 钥匙串账号 `SideTap` 与发布队列标识也保持兼容，公私钥不变。
+- 历史发布说明保留当时的名称，已发布的签名订阅不因源码改名而重写。
+
+任务执行模型、严格返回协议和后续流程编排边界见 [任务执行架构](task-execution-architecture.md)。
+
+
+## 管理主界面
+
+主窗口默认 1040 × 760，最小 820 × 600，可调整窗口与侧栏宽度，保存窗口尺寸和位置。使用原生侧栏材质，跟随系统深浅色。
+
+- 左侧固定入口：全部任务、活动、流程、运行记录；底部“设置”集中边缘唤出、AI 接入与软件更新。顶部新建菜单支持添加分类、任务和 JSON 导入。
+- 分类可展开/收起，任务显示图标、Dock 标记与运行状态点；搜索匹配任务/分类名称，支持全部、Dock、最近 20 个有记录的任务筛选。分类与任务的右键菜单保留重命名、执行、排序和删除入口。
+- 右侧分类/全部任务显示可执行的任务概览。选择任务后显示大图标、名称、执行按钮、Dock 开关和最近运行；高级执行配置默认折叠，JSON 输入输出按需展开，环境变量仅显示数量。
+- 添加和编辑任务直接在右侧工作区完成，继续使用 revision 乐观并发校验。切换内容会提示放弃草稿；保存失败保留草稿，外部移除当前内容时显示重新选择入口。
+- 此轮保留现有流程、活动、运行记录和设置内容，接入新导航；没有重做流程编辑器或灵动岛窗口。

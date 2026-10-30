@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A small SideTap v1 adapter. Extend operations here without changing the app."""
+"""A small TapDone v1 adapter. Extend operations here without changing the app."""
 import json
 import platform
 import sys
@@ -14,7 +14,7 @@ def main():
         if not isinstance(payload, dict):
             raise ValueError("input must be an object for this extension")
         operation = payload.get("operation", "system-info")
-        print("SideTap toolbox: " + operation, file=sys.stderr, flush=True)
+        print("TapDone toolbox: " + operation, file=sys.stderr, flush=True)
         if operation == "system-info":
             data = {"system": platform.system(), "architecture": platform.machine()}
             message = "已读取系统信息"

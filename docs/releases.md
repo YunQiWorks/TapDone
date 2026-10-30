@@ -55,7 +55,7 @@ https://yunqiworks.github.io/TapDone/appcast.xml
 
 Sparkle 使用 SwiftPM 的动态框架嵌入机制。Debug 配置单独关闭 library validation，以便本地 ad-hoc 签名开发包加载该框架；Release 使用免费的 ad-hoc 签名并关闭 Hardened Runtime，避免无 Team ID 的签名触发 Sparkle library validation；不使用 Apple 证书或公证。
 
-`Config/Version.xcconfig` 保存展示版本和构建号，当前为 `0.2.3` / `5`。`Config/Updates.xcconfig` 保存更新地址和默认空公钥。需要让开发包检查真实更新时，可创建被 Git 忽略的 `Config/Updates.local.xcconfig`，配置同一公钥；该文件只放公钥，不放私钥或证书。
+`Config/Version.xcconfig` 保存展示版本和构建号，当前为 `0.3.0` / `6`。`Config/Updates.xcconfig` 保存更新地址和默认空公钥。需要让开发包检查真实更新时，可创建被 Git 忽略的 `Config/Updates.local.xcconfig`，配置同一公钥；该文件只放公钥，不放私钥或证书。
 
 CI 通过 xcodebuild 参数注入公钥、版本和订阅地址，覆盖本机配置。开发包与正式版需保持 Bundle Identifier `dev.sidetap.SideTap` 一致才能延续数据位置和更新身份。首个配置了更新公钥的发布版本仍需用户手动下载安装一次；此前未配置公钥的开发包不会自动获得更新能力。
 

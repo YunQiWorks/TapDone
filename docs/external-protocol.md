@@ -6,7 +6,7 @@ TapDone 只维护调用接口，具体功能放在外部脚本或程序中。新
 
 ## 文件布局与添加流程
 
-先运行 `sidetap paths` 获取 `scripts` 目录。推荐每个扩展一个文件夹：
+先运行 `tapdone paths` 获取 `scripts` 目录。推荐每个扩展一个文件夹：
 
 ```text
 ~/Library/Application Support/SideTap/scripts/project-build/
@@ -57,7 +57,7 @@ AI 写入或更新脚本，生成任务 JSON，执行 `tasks validate` 后再 `t
 }
 ```
 
-运行环境还提供 `SIDETAP_PROTOCOL_VERSION`、`SIDETAP_TASK_ID`、`SIDETAP_RUN_ID`。保留字段由 TapDone 设置，不被自定义 environment 覆盖。输入通过临时文件连接到 stdin；常规运行结束或启动失败后清理。
+运行环境还提供 `TAPDONE_PROTOCOL_VERSION`、`TAPDONE_TASK_ID`、`TAPDONE_RUN_ID`，同时提供相同值的旧名 `SIDETAP_PROTOCOL_VERSION`、`SIDETAP_TASK_ID`、`SIDETAP_RUN_ID` 以兼容现有脚本。保留字段由 TapDone 设置，不被自定义 environment 覆盖。输入通过临时文件连接到 stdin；常规运行结束或启动失败后清理。
 
 ## 输出
 
@@ -74,10 +74,22 @@ stdout **只输出一个完整的 UTF-8 JSON 结果**，不要把日志、进度
 
 `protocolVersion` 和 `ok` 必需；`message` 与 `data` 可省略。`data` 可为任意 JSON 数据。扩展内部可增加新字段和能力，TapDone 无需认识业务字段。日志、调试信息和进度写 stderr。程序以退出码 0 且 `ok: true` 才判定成功；非零退出码、`ok: false`、无效结果或大于 1 MB 的结果均判为失败。终止或超时优先显示对应状态。
 
-“运行记录”展示状态和 message，并提供“查看结果”和“查看日志”。stdout 原始结果保存在 `Logs/<run-id>.result.json`；stderr 与运行信息保存在 `Logs/<run-id>.log`。不自动打开 data 中的地址或执行 data 中的指令。输出日志和结果文件保留以便排查，运行列表仅保留本次启动。
+“运行记录”展示状态和 message，并提供“查看结果”和“查看日志”。stdout 原始结果保存在 `Logs/<run-id>.result.json`；stderr 与运行信息保存在 `Logs/<run-id>.log`。不自动打开 data 中的地址或执行 data 中的指令。输出日志和结果文件保留以便排查，运行列表跨重启保存。
 
 ## AI 扩展边界
 
 新业务功能应优先作为外部扩展实现：生成脚本、设置 input 和 arguments，通过 CLI 添加任务。TapDone 无需枚举 Jenkins、SSH、HTTP、图片处理等每一种业务。保存和校验不会执行脚本；实际执行由用户点击任务触发。应用自己的新窗口交互、原生权限流程或执行协议变更仍属于应用功能开发。
 
 设置中可编辑可执行程序、参数 JSON、输入 JSON、工作目录、超时；环境变量由 AI 配置并在界面编辑时保留。完整 AI 操作说明见项目 Skill，入门示例见 [toolbox](../examples/extensions/toolbox)。
+
+## 可选严格返回协议 v2
+
+新任务可设置 `action.protocolVersion: 2`；省略时继续使用 v1。v2 的请求包含本次 taskID、runID，最终 JSON 必须回传同一身份，且 protocolVersion 为 2。字段为 `protocolVersion`、`taskID`、`runID`、`ok`、可选 `message` 和 `data`，不允许未知顶层字段。退出码非零、结果缺失/无效或身份不匹配均失败。
+
+命令与外部扩展的运行实例现已持久化到数据目录的 `Runs/`，重启仍可查看；未确认结束的记录标记为中断，不自动重试。详见 [任务执行架构](task-execution-architecture.md)。普通 v2 使用最终返回；远程作业可通过 [异步适配](remote-async-tasks.md)配置，进度事件和复核仍在后续开发范围。
+
+## 输入输出约束
+
+external 的 action 可选 inputContract、outputContract，定义输入与最终 data 的类型、必填字段及长度/数值范围。不支持的规则报错；输入无效不执行，输出无效不计为成功。具体语法、边界和示例见 [输入输出约束](payload-contracts.md)。
+
+异步任务通过 `action.asyncOptions` 启用，必须使用协议 v2。提交确认与最终成功分开，查询与恢复规则见 [远程异步任务](remote-async-tasks.md)。
