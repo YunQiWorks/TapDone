@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        configureApplicationMenu()
         updates.start()
         panelController = PanelController(store: store)
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -45,6 +46,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         timer.tolerance = 0.003
         RunLoop.main.add(timer, forMode: .common)
         gestureTimer = timer
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showSettings()
+        return false
+    }
+
+    private func configureApplicationMenu() {
+        // Preserve native editing shortcuts without registering a SwiftUI Settings scene.
+        let main = NSMenu()
+        let applicationItem = NSMenuItem()
+        let applicationMenu = NSMenu(title: "TapDone")
+        let workspace = applicationMenu.addItem(withTitle: "显示 TapDone", action: #selector(showSettings), keyEquivalent: ",")
+        workspace.target = self
+        applicationMenu.addItem(.separator())
+        applicationMenu.addItem(withTitle: "退出 TapDone", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        applicationItem.submenu = applicationMenu
+        main.addItem(applicationItem)
+
+        let editItem = NSMenuItem()
+        let edit = NSMenu(title: "编辑")
+        edit.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "重做", action: Selector(("redo:")), keyEquivalent: "Z")
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "复制", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = edit
+        main.addItem(editItem)
+        NSApp.mainMenu = main
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -126,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             settingsWindow = window
         }
         NSApp.activate(ignoringOtherApps: true)
+        if settingsWindow?.isMiniaturized == true { settingsWindow?.deminiaturize(nil) }
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
 
