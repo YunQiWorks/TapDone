@@ -55,7 +55,7 @@ https://yunqiworks.github.io/TapDone/appcast.xml
 
 Sparkle 使用 SwiftPM 的动态框架嵌入机制。Debug 配置单独关闭 library validation，以便本地 ad-hoc 签名开发包加载该框架；Release 使用免费的 ad-hoc 签名并关闭 Hardened Runtime，避免无 Team ID 的签名触发 Sparkle library validation；不使用 Apple 证书或公证。
 
-`Config/Version.xcconfig` 保存展示版本和构建号，当前为 `0.2.0` / `2`。`Config/Updates.xcconfig` 保存更新地址和默认空公钥。需要让开发包检查真实更新时，可创建被 Git 忽略的 `Config/Updates.local.xcconfig`，配置同一公钥；该文件只放公钥，不放私钥或证书。
+`Config/Version.xcconfig` 保存展示版本和构建号，当前为 `0.2.2` / `4`。`Config/Updates.xcconfig` 保存更新地址和默认空公钥。需要让开发包检查真实更新时，可创建被 Git 忽略的 `Config/Updates.local.xcconfig`，配置同一公钥；该文件只放公钥，不放私钥或证书。
 
 CI 通过 xcodebuild 参数注入公钥、版本和订阅地址，覆盖本机配置。开发包与正式版需保持 Bundle Identifier `dev.sidetap.SideTap` 一致才能延续数据位置和更新身份。首个配置了更新公钥的发布版本仍需用户手动下载安装一次；此前未配置公钥的开发包不会自动获得更新能力。
 
@@ -66,8 +66,8 @@ CI 通过 xcodebuild 参数注入公钥、版本和订阅地址，覆盖本机�
 3. `.github/workflows/release.yml` 在 macOS runner 上运行 `scripts/release/prepare_release.py`：
    - 检查配置，校验 Sparkle 工具包 SHA-256。
    - 读取并验证现有订阅签名，确保新版本和构建号递增。
-   - Archive 时以 ad-hoc 签名同时构建 arm64 与 x86_64，内含 CLI 和 Sparkle。
-   - 从 Archive 复制应用，校验包内代码签名完整性，再生成最终 ZIP；不使用 Developer ID 导出或 Apple 公证。
+   - Archive 时关闭 Xcode 自动签名，同时构建 arm64 与 x86_64，内含 CLI 和 Sparkle。
+   - 从 Archive 复制应用，对 Mach-O 程序、嵌套框架与应用由内向外执行 ad-hoc 签名，校验完整性，再生成最终 ZIP；不使用 Developer ID 导出或 Apple 公证。
    - 对 ZIP 做 Sparkle 签名，并用配置公钥核验。
    - 生成保留最近十版的 appcast，嵌入更新说明，签名并验证订阅文件。
 4. 工作流将 ZIP、SHA256SUMS、appcast.xml 发布到 GitHub Releases，再由 Pages job 发布已签名的订阅文件。
@@ -97,3 +97,5 @@ CI 通过 xcodebuild 参数注入公钥、版本和订阅地址，覆盖本机�
 - **新版本出现问题**：用户可手动安装先前的签名版本。没有实现自动回滚；若新格式任务库不兼容旧版，先保留当前数据，再选用 Backups 中的副本进行人工恢复。
 
 官方参考：[Sparkle 接入](https://sparkle-project.org/documentation/)、[发布更新](https://sparkle-project.org/documentation/publishing/)、[GitHub Pages 工作流](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
+
+工作流手动运行时可勾选 `prepare_only`，使用所选分支完成打包和签名校验，但不创建 Release 或部署 Pages。正式发布始终使用对应标签中的源码。失败日志会显示非敏感工具输出末尾，并上传 `.release/*.log` 供排查。
