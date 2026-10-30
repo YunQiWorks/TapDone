@@ -36,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         showSettings()
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.sampleGesture() }
+            Task { @MainActor [weak self] in self?.sampleGesture() }
         }
         timer.tolerance = 0.003
         RunLoop.main.add(timer, forMode: .common)

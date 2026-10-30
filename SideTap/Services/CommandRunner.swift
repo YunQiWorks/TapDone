@@ -44,7 +44,7 @@ final class CommandRunner {
         } else if action.kind == .command, let configuration = action.commandOptions {
             program = nil; options = try configuration.validated(command: action.target)
             executable = "/bin/zsh"; argumentStrings = [executable, "-lc", action.target]
-        } else { throw TapDoneError("INVALID_COMMAND", "缺少命令或外部扩展配置。") }
+        } else { throw SideTapError("INVALID_COMMAND", "缺少命令或外部扩展配置。") }
         let runID = UUID().uuidString
         let logs = TaskRepository().directoryURL.appendingPathComponent("Logs", isDirectory: true)
         try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
@@ -163,9 +163,9 @@ final class CommandRunner {
                 let handle = try FileHandle(forReadingFrom: resultURL)
                 defer { try? handle.close() }
                 let data = try handle.read(upToCount: 1024 * 1024 + 1) ?? Data()
-                guard data.count <= 1024 * 1024 else { throw TapDoneError("RESULT_TOO_LARGE", "扩展结果超过 1 MB。") }
+                guard data.count <= 1024 * 1024 else { throw SideTapError("RESULT_TOO_LARGE", "扩展结果超过 1 MB。") }
                 let response = try JSONDecoder().decode(ExternalResponse.self, from: data)
-                guard response.protocolVersion == 1 else { throw TapDoneError("INVALID_RESULT", "扩展返回的 protocolVersion 不受支持。") }
+                guard response.protocolVersion == 1 else { throw SideTapError("INVALID_RESULT", "扩展返回的 protocolVersion 不受支持。") }
                 job.run.summary = response.message
                 if !response.ok { job.run.state = .failed }
             } catch {
@@ -184,6 +184,6 @@ final class CommandRunner {
     }
 
     private func check(_ code: Int32) throws {
-        guard code == 0 else { throw TapDoneError("COMMAND_START_FAILED", "无法启动命令：\(String(cString: strerror(code)))") }
+        guard code == 0 else { throw SideTapError("COMMAND_START_FAILED", "无法启动命令：\(String(cString: strerror(code)))") }
     }
 }
