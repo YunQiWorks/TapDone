@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="SideTap/Resources/Assets.xcassets/AppIcon.appiconset/icon_128x128@2x.png" alt="TapDone 应用图标" width="128" height="128">
+</p>
+
 # 即达 · TapDone
 
 **一键即达，一键完成。**
@@ -7,6 +11,16 @@
 TapDone 是一款 macOS 快捷操作工具。把打开网站、访问文件夹、运行脚本等常用操作放进自己的快捷栏，鼠标移到屏幕边缘，停留片刻即可唤出，点击按钮执行任务。
 
 让重复操作少几个步骤，让常用工具随手可达。
+
+## 复制一句话，让 AI 帮你安装
+
+把下面这段话复制给支持本机终端操作的 AI 助手，即可让它根据项目说明帮你在 Mac 上安装 TapDone：
+
+```text
+请帮我在这台 Mac 上安装并配置 TapDone（即达）：https://github.com/YunQiWorks/TapDone 。先阅读仓库 README.md、docs/development.md 和 docs/ai-integration.md，检查系统是否为 macOS 13 或以上。优先从该仓库的 GitHub Releases 下载适合本机的已发布安装包，解压并将 TapDone.app 安装到“应用程序”；若没有可用安装包，先检查 Xcode 等构建条件，再按项目说明从源码构建安装，缺少条件时告诉我需要补充什么。保留已有任务和脚本，不覆盖现有配置。安装完成后告诉我应用位置、首次打开方式，以及如何在设置中添加任务和启用边缘唤出；如果 macOS 拦截打开，指导我通过系统设置允许打开。
+```
+
+纯聊天、无法访问本机的 AI 可以提供操作指导，实际安装需要你手动完成。安装后，还可以继续让 AI 帮你[把想法变成按钮](#让-ai-把想法变成按钮)。
 
 ## 可以用来做什么
 

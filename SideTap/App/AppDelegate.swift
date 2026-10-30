@@ -22,7 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updates.start()
         panelController = PanelController(store: store)
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: "TapDone")
+        let menuBarIcon = NSImage(named: "MenuBarIcon")
+        menuBarIcon?.isTemplate = true
+        menuBarIcon?.size = NSSize(width: 18, height: 18)
+        menuBarIcon?.accessibilityDescription = "TapDone"
+        item.button?.image = menuBarIcon
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
