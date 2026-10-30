@@ -42,6 +42,8 @@ def run(command, *, log=None, stdin=None, sensitive=False):
     if log:
         Path(log).write_text(result.stdout)
     if result.returncode:
+        if log and not sensitive:
+            print(result.stdout[-20000:], file=sys.stderr, flush=True)
         detail = "（敏感工具输出已隐藏）" if sensitive else ("，见 " + str(log) if log else "")
         raise RuntimeError(Path(str(command[0])).name + " 执行失败" + detail)
     return result.stdout

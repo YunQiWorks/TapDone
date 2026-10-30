@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "development.open-sidetap",
   "category": "开发工具",
-  "name": "打开 SideTap 工程",
+  "name": "打开 TapDone 工程",
   "icon": "hammer",
   "showInDock": true,
   "action": {
     "type": "open",
-    "path": "~/Documents/SideTap/SideTap.xcodeproj"
+    "path": "~/Documents/TapDone/SideTap.xcodeproj"
   }
 }

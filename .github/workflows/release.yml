@@ -9,6 +9,10 @@ on:
         description: 'Existing release tag, for example v0.2.0'
         required: true
         type: string
+      prepare_only:
+        description: Build package without publishing (uses selected branch)
+        type: boolean
+        default: false
 
 concurrency:
   group: sidetap-stable-release
@@ -28,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.prepare_only && github.ref_name || inputs.tag || github.ref_name }}
           fetch-depth: 0
       - name: Confirm new tag
         env:
@@ -47,6 +51,7 @@ jobs:
         run: |
           python3 scripts/release/prepare_release.py --tag "$RELEASE_TAG" --build "$((GITHUB_RUN_NUMBER + 1000))"
       - name: Publish GitHub release
+        if: ${{ !inputs.prepare_only }}
         env:
           GH_TOKEN: ${{ github.token }}
           ZIP_NAME: ${{ steps.package.outputs.zip_name }}
@@ -58,15 +63,18 @@ jobs:
         with:
           name: release-build-logs
           path: .release/*.log
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload signed feed for Pages
+        if: ${{ !inputs.prepare_only }}
         uses: actions/upload-pages-artifact@v4
         with:
           path: .release/site
 
   deploy-feed:
     needs: release
+    if: ${{ !inputs.prepare_only }}
     runs-on: ubuntu-latest
     permissions:
       pages: write
