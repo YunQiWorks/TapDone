@@ -129,6 +129,7 @@ def prepare(tag, build):
          "-derivedDataPath", WORK / "DerivedData", "-clonedSourcePackagesDirPath", WORK / "SourcePackages",
          "-onlyUsePackageVersionsFromResolvedFile", "CODE_SIGN_STYLE=Manual", "CODE_SIGN_IDENTITY=-",
          "DEVELOPMENT_TEAM=", "ENABLE_HARDENED_RUNTIME=NO", "CODE_SIGN_ENTITLEMENTS=",
+         "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO",
          "ARCHS=arm64 x86_64", "ONLY_ACTIVE_ARCH=NO", "MARKETING_VERSION=" + version,
          "CURRENT_PROJECT_VERSION=" + str(build), "SPARKLE_PUBLIC_KEY=" + public_key,
          "SIDETAP_UPDATE_FEED_URL=" + feed_url], log=WORK / "archive.log")
@@ -145,8 +146,22 @@ def prepare(tag, build):
         raise RuntimeError("应用缺少内置 CLI。")
     if not (app / "Contents/Frameworks/Sparkle.framework").is_dir():
         raise RuntimeError("应用缺少 Sparkle 框架。")
-    # Xcode signs embedded code before the outer app. Verify the resulting bundle;
-    # this checks integrity, not Apple trust or notarization.
+    # Sign inside out after archiving, avoiding Xcode 15 CLI entitlement signing.
+    # Include all Mach-O tools/libraries, then nested bundles and the outer app.
+    macho_magic = {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe",
+                   b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca", b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca"}
+    for executable in sorted(app.rglob("*")):
+        if executable.is_symlink() or not executable.is_file():
+            continue
+        with executable.open("rb") as stream:
+            magic = stream.read(4)
+        if magic in macho_magic:
+            run(["codesign", "--force", "--sign", "-", "--timestamp=none", executable])
+    bundles = [path for path in app.rglob("*") if not path.is_symlink() and path.is_dir()
+               and path.suffix in {".app", ".xpc", ".framework"}]
+    for bundle in sorted(bundles, key=lambda path: len(path.parts), reverse=True) + [app]:
+        run(["codesign", "--force", "--sign", "-", "--timestamp=none", bundle])
+    # This checks integrity, not Apple trust or notarization.
     run(["codesign", "--verify", "--deep", "--strict", app], log=WORK / "codesign.log")
     dist = WORK / "dist"
     dist.mkdir(exist_ok=True)
