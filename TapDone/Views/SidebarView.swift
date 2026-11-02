@@ -293,9 +293,10 @@ enum TaskIconProvider {
 
 struct TaskIconView: View {
     let task: QuickAction
+    var imageOverride: CGImage? = nil
     var body: some View {
         Group {
-            if let image = TaskIconProvider.image(for: task) {
+            if let image = imageOverride ?? TaskIconProvider.image(for: task) {
                 Image(decorative: image, scale: 1).resizable().interpolation(.high).scaledToFit()
             } else { Image(systemName: task.symbol).resizable().scaledToFit().foregroundStyle(Color.accentColor) }
         }

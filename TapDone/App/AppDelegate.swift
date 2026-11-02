@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var taskMenuIsOpen = false
     private var panelController: PanelController?
     private var settingsWindow: NSWindow?
+    private var activityOverlay: ActivityOverlayController?
     private var gestureTimer: Timer?
     private var regionEnteredAt: TimeInterval?
     private var waitingForRegionExit = false
@@ -22,6 +23,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         configureApplicationMenu()
         updates.start()
         panelController = PanelController(store: store)
+        activityOverlay = ActivityOverlayController(model: ActivityOverlayModel(center: store.activities), preferences: store.overlayPreferences,
+            task: { [weak self] activity in self?.store.commandRuns.first(where: { $0.id == activity.runID })?.definition },
+            phase: { [weak self] activity in self?.currentPhase(for: activity) },
+            details: { [weak self] activity in self?.showActivityDetails(activity) },
+            openLog: { [weak self] activity in self?.openActivityLog(activity) },
+            stop: { [weak self] activity in
+                if activity.source == .workflow { self?.store.workflows.stop(activity.runID) }
+                else { self?.store.stopCommand(activity.runID) }
+            }, showActivities: { [weak self] in self?.showActivities() })
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         let menuBarIcon = NSImage(named: "MenuBarIcon")
         menuBarIcon?.isTemplate = true
@@ -101,6 +111,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
         let settings = menu.addItem(withTitle: "设置…", action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
+        let activity = menu.addItem(withTitle: "任务运行状态…", action: #selector(showActivityOverlay), keyEquivalent: "")
+        activity.target = self
         let update = menu.addItem(withTitle: "检查更新…", action: #selector(AppUpdateController.checkForUpdates(_:)), keyEquivalent: "")
         update.target = updates
         update.isEnabled = updates.canCheck
@@ -140,6 +152,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panelController?.hide()
         resetGesture()
         store.run(task)
+    }
+
+    @objc private func showActivityOverlay() { activityOverlay?.reveal() }
+
+    private func showActivities() {
+        store.workspaceOpenRequest = .init(destination: .activities)
+        showSettings()
+    }
+
+    private func showActivityDetails(_ activity: RunActivity) {
+        store.workspaceOpenRequest = .init(destination: activity.source == .workflow ? .workflow(activity.runID) : .task(activity.definitionID))
+        showSettings()
+    }
+
+    private func openActivityLog(_ activity: RunActivity) {
+        do {
+            let url = try store.execution.history.read(activity.runID).logURL
+            guard FileManager.default.fileExists(atPath: url.path), NSWorkspace.shared.open(url) else {
+                throw TapDoneError("LOG_UNAVAILABLE", "日志文件不存在或无法打开，请在运行记录中检查。")
+            }
+        }
+        catch { store.message = "无法打开日志：\(error.localizedDescription)"; showActivities() }
+    }
+
+    private func currentPhase(for activity: RunActivity) -> String? {
+        guard activity.source == .workflow, let run = store.workflows.runs.first(where: { $0.id == activity.runID }),
+              let node = run.nodes.first(where: { $0.state == .waitingReview || $0.state == .running || $0.state == .starting || $0.state == .failed }),
+              let name = run.plan.definition.nodes.first(where: { $0.id == node.id })?.name else { return nil }
+        return "当前节点：" + name
     }
 
     @objc private func showSettings() {
@@ -183,7 +224,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             $0.isVisible && $0.isKeyWindow && $0.frame.contains(point)
         } ?? false
         guard store.gestureEnabled, !taskMenuIsOpen, NSEvent.pressedMouseButtons == 0,
-              !interactingWithSettings,
+              !interactingWithSettings, !ActivityOverlayController.containsAny(point),
               !store.dockActions.isEmpty else {
             resetGesture()
             return
@@ -221,6 +262,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         gestureTimer?.invalidate()
+        activityOverlay?.shutdown()
         store.stopAllCommands()
     }
 }

@@ -99,3 +99,9 @@ AI 可通过 `action.type: "command"` 添加本机打包或其他脚本。示例
 
 
 主界面的窗口生命周期统一由 AppKit 的 AppDelegate 管理，SwiftUI 只作为 NSHostingView 内容，不注册额外的 Settings 或 WindowGroup scene。启动、菜单栏入口与系统重新打开 App 都复用同一个窗口，窗口最小化时会先恢复。AppKit 同时提供原生编辑菜单以保留复制、粘贴、撤销等快捷键。
+
+
+开发版可通过左下角“效果预览”集中查看任务状态、流程复核及图标边界，操作说明见 [开发版效果预览](development-preview.md)。
+
+
+运行时独立浮窗的状态保留、关闭语义、流程复核跳转与开发预览见 [独立任务运行浮窗](activity-overlay.md)。

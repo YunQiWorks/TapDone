@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 struct WorkflowsView: View {
     @ObservedObject var runner: WorkflowRunner
     @ObservedObject var store: AppStore
+    var focus: WorkspaceOpenRequest? = nil
+    @State private var expandedRunIDs = Set<String>()
     private struct Review: Identifiable {
         let id: String
         let nodeID: String
@@ -26,6 +28,7 @@ struct WorkflowsView: View {
                 .font(.caption).foregroundStyle(.secondary)
             if !reviewError.isEmpty { Text(reviewError).font(.caption).foregroundStyle(.red) }
             if !runner.errorMessage.isEmpty { Text(runner.errorMessage).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
+            ScrollViewReader { proxy in
             List {
                 Section("已添加的流程") {
                     ForEach(runner.definitions) { definition in
@@ -42,14 +45,15 @@ struct WorkflowsView: View {
                 }
                 Section("流程运行") {
                     ForEach(runner.runs) { run in
-                        DisclosureGroup {
+                        DisclosureGroup(isExpanded: Binding(
+                            get: { expandedRunIDs.contains(run.id) },
+                            set: { if $0 { expandedRunIDs.insert(run.id) } else { expandedRunIDs.remove(run.id) } })) {
                             if let message = run.message { Text(message).font(.caption).textSelection(.enabled) }
                             ForEach(run.nodes) { node in
                                 VStack(alignment: .leading, spacing: 5) {
                                     HStack {
-                                        Text(run.plan.definition.nodes.first(where: { $0.id == node.id })?.name ?? node.id)
-                                        Spacer()
-                                        Text(node.state.title).foregroundStyle(.secondary)
+                                        WorkflowNodeStatusView(node: node,
+                                            name: run.plan.definition.nodes.first(where: { $0.id == node.id })?.name ?? node.id)
                                         if node.state == .waitingReview, let context = node.context {
                                             Button("复核…") {
                                                 do { review = Review(id: run.id, nodeID: node.id, context: context, digest: try context.digest()) }
@@ -57,7 +61,6 @@ struct WorkflowsView: View {
                                             }.disabled(store.updateInstallationPending)
                                         }
                                     }
-                                    if let message = node.message { Text(message).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
                                     if let childID = node.childRunID {
                                         HStack {
                                             Text("运行：\(childID)").font(.caption.monospaced()).textSelection(.enabled)
@@ -80,9 +83,12 @@ struct WorkflowsView: View {
                             }
                         } label: {
                             HStack { Text(run.plan.definition.name); Spacer(); Text(run.state.title).foregroundStyle(.secondary) }
-                        }
+                        }.id(run.id)
                     }
                 }
+            }
+            .onAppear { focusRequestedRun(); scrollToRequestedRun(proxy) }
+            .onChange(of: focus?.id) { _ in focusRequestedRun(); scrollToRequestedRun(proxy) }
             }
         }
         .padding(16)
@@ -92,6 +98,22 @@ struct WorkflowsView: View {
             }
         }
     }
+    private func scrollToRequestedRun(_ proxy: ScrollViewProxy) {
+        guard case .workflow(let id) = focus?.destination else { return }
+        DispatchQueue.main.async { proxy.scrollTo(id, anchor: .top) }
+    }
+
+    private func focusRequestedRun() {
+        guard case .workflow(let id) = focus?.destination else { return }
+        guard let run = runner.runs.first(where: { $0.id == id }) else { reviewError = "该流程运行记录已不可用。"; return }
+        expandedRunIDs.insert(id)
+        if run.state == .waitingReview,
+           let node = run.nodes.first(where: { $0.state == .waitingReview }), let context = node.context {
+            do { review = Review(id: run.id, nodeID: node.id, context: context, digest: try context.digest()) }
+            catch { reviewError = "复核内容读取失败：\(error.localizedDescription)" }
+        }
+    }
+
     private func importWorkflow() {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.json]; panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url { runner.importDefinition(url, library: store.library) }
@@ -99,7 +121,7 @@ struct WorkflowsView: View {
 }
 
 @MainActor
-private struct WorkflowReviewView: View {
+struct WorkflowReviewView: View {
     let context: WorkflowReviewContext
     let error: String
     let decide: (Bool, String) -> Bool

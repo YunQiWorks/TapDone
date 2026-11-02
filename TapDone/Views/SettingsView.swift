@@ -7,6 +7,7 @@ struct SettingsView: View {
     @ObservedObject var updates: AppUpdateController
     @State private var destination: WorkspaceDestination = .tasks
     @State private var settingsSection = "gesture"
+    @State private var workflowFocus: WorkspaceOpenRequest?
     @State private var draft: TaskEditorDraft?
     @State private var pendingIntent: WorkspaceIntent?
     @State private var confirmingDiscard = false
@@ -26,7 +27,7 @@ struct SettingsView: View {
         let revision: UInt64
     }
     private enum WorkspaceIntent {
-        case navigate(WorkspaceDestination), edit(QuickAction), newTask
+        case navigate(WorkspaceDestination), edit(QuickAction), newTask, openRun(WorkspaceOpenRequest)
     }
     private var activeCategory: TaskCategory? {
         switch destination {
@@ -46,11 +47,7 @@ struct SettingsView: View {
                 .frame(minWidth: 220, idealWidth: 250, maxWidth: 320)
             VStack(spacing: 0) {
                 if !store.storageError.isEmpty {
-                    HStack(alignment: .top) {
-                        Label(store.storageError, systemImage: "exclamationmark.circle").font(.callout).foregroundStyle(.red).textSelection(.enabled)
-                        Spacer()
-                        Button("重新读取") { store.refreshLibrary() }
-                    }.padding(16)
+                    WorkspaceStorageError(message: store.storageError) { store.refreshLibrary() }
                     Divider()
                 }
                 if let draft { inlineEditor(draft) }
@@ -67,6 +64,14 @@ struct SettingsView: View {
             .background(Color(nsColor: .windowBackgroundColor))
         }
         .frame(minWidth: 820, idealWidth: 1040, minHeight: 600, idealHeight: 760)
+        .onReceive(store.$workspaceOpenRequest) { value in
+            guard let value else { return }
+            DispatchQueue.main.async {
+                guard store.workspaceOpenRequest?.id == value.id else { return }
+                store.workspaceOpenRequest = nil
+                request(.openRun(value))
+            }
+        }
         .alert("放弃尚未保存的修改？", isPresented: $confirmingDiscard) {
             Button("继续编辑", role: .cancel) { pendingIntent = nil }
             Button("放弃修改", role: .destructive) {
@@ -107,7 +112,7 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder
+    @MainActor @ViewBuilder
     private var workspace: some View {
         switch destination {
         case .tasks:
@@ -123,19 +128,25 @@ struct SettingsView: View {
         case .activities:
             ActivitiesView(center: store.activities, store: store) { request(.navigate(.workflows)) }.padding(24)
         case .workflows:
-            WorkflowsView(runner: store.workflows, store: store).padding(24)
+            WorkflowsView(runner: store.workflows, store: store, focus: workflowFocus).padding(24)
         case .runs:
             runsTab.padding(12)
+        #if DEBUG
+        case .previews:
+            ExecutionPreviewView(overlayPreferences: store.overlayPreferences)
+        #endif
         case .settings:
             VStack(alignment: .leading, spacing: 18) {
                 Text("设置").font(.system(size: 26, weight: .semibold)).padding(.horizontal, 16)
                 Picker("设置页面", selection: $settingsSection) {
                     Text("边缘唤出").tag("gesture")
+                    Text("运行浮窗").tag("overlay")
                     Text("AI 接入").tag("integration")
                     Text("软件更新").tag("updates")
                 }.pickerStyle(.segmented).padding(.horizontal, 16)
                 Group {
                     switch settingsSection {
+                    case "overlay": ActivityOverlaySettingsView(preferences: store.overlayPreferences)
                     case "integration": integrationTab
                     case "updates": updateTab
                     default: gestureTab
@@ -164,7 +175,15 @@ struct SettingsView: View {
     }
     private func perform(_ intent: WorkspaceIntent) {
         switch intent {
-        case .navigate(let target): destination = target
+        case .navigate(let target): workflowFocus = nil; destination = target
+        case .openRun(let value):
+            switch value.destination {
+            case .task(let id): destination = .task(id)
+            case .workflow:
+                workflowFocus = value
+                destination = .workflows
+            case .activities: destination = .activities
+            }
         case .edit(let task):
             guard let categoryID = store.categoryID(for: task.id) else { return }
             destination = .task(task.id)
@@ -625,40 +644,11 @@ private struct ActivitiesView: View {
                 .font(.caption).foregroundStyle(.secondary)
             if center.activities.isEmpty { Text("暂无活动").foregroundStyle(.secondary) }
             List(center.activities) { activity in
-                HStack(alignment: .top, spacing: 12) {
-                    if let task = store.commandRuns.first(where: { $0.id == activity.runID && activity.source == .task })?.definition {
-                        TaskIconView(task: task).frame(width: 28, height: 28)
-                    } else { Image(systemName: activity.symbol).frame(width: 28, height: 28) }
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(activity.title).fontWeight(.medium)
-                            Spacer()
-                            Text(activity.state.title).foregroundStyle(.secondary)
-                        }
-                        Text(activity.source == .workflow ? "流程" : activity.parentWorkflowRunID == nil ? "任务" : "流程子任务")
-                            .font(.caption).foregroundStyle(.secondary)
-                        if let progress = activity.progress {
-                            ProgressView(value: progress.fraction)
-                            Text("完成 \(progress.completed) / \(progress.total) 个节点").font(.caption)
-                        }
-                        Text(activity.startedAt, style: .date).font(.caption).foregroundStyle(.secondary)
-                        HStack {
-                            if activity.capabilities.contains(.openLog) {
-                                Button("查看日志") {
-                                    if let run = store.commandRuns.first(where: { $0.id == activity.runID }) {
-                                        NSWorkspace.shared.open(run.logURL)
-                                    }
-                                }
-                            }
-                            if activity.source == .workflow, !activity.state.isTerminal {
-                                Button(activity.capabilities.contains(.review) ? "前往复核" : "查看流程", action: showWorkflows)
-                            }
-                            if activity.source == .task, activity.capabilities.contains(.stop) || activity.capabilities.contains(.stopTracking) {
-                                Button(activity.capabilities.contains(.stopTracking) ? "停止跟踪" : "停止") { store.stopCommand(activity.runID) }
-                            }
-                        }.font(.caption)
-                    }
-                }.padding(.vertical, 6)
+                RunActivityRow(activity: activity,
+                    task: store.commandRuns.first(where: { $0.id == activity.runID && activity.source == .task })?.definition,
+                    openLog: {
+                        if let run = store.commandRuns.first(where: { $0.id == activity.runID }) { NSWorkspace.shared.open(run.logURL) }
+                    }, showWorkflow: showWorkflows, stop: { store.stopCommand(activity.runID) })
             }
         }.padding(.top, 8)
     }

@@ -3,6 +3,9 @@ import SwiftUI
 
 enum WorkspaceDestination: Hashable {
     case tasks, task(String), category(String), activities, workflows, runs, settings
+    #if DEBUG
+    case previews
+    #endif
 }
 
 struct TaskNavigationView: View {
@@ -118,6 +121,10 @@ struct TaskNavigationView: View {
                     }
                 }
             Divider().padding(.horizontal, 14)
+            #if DEBUG
+            navigation("效果预览", symbol: "rectangle.on.rectangle", to: .previews)
+                .padding(.horizontal, 10).padding(.top, 8)
+            #endif
             navigation("设置", symbol: "gearshape", to: .settings).padding(10)
         }
         .background(.regularMaterial)

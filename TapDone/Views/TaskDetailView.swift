@@ -13,6 +13,7 @@ struct TaskDetailView: View {
     private var options: CommandOptions? { task.externalProgram?.options ?? task.commandOptions }
 
     var body: some View {
+        let currentRun = latest
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 HStack {
@@ -49,44 +50,10 @@ struct TaskDetailView: View {
                     Label("更新正在等待安装，暂时不能启动新任务。", systemImage: "arrow.down.circle")
                         .font(.callout).foregroundStyle(.secondary)
                 }
-                WorkspaceCard {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Text("最近运行").font(.headline)
-                            Spacer()
-                            Button("全部记录", action: showHistory).font(.callout)
-                        }
-                        if let run = latest {
-                            HStack {
-                                Label(run.state.title, systemImage: stateSymbol(run.state))
-                                    .foregroundStyle(run.state == .failed || run.state == .timedOut ? Color.red : Color.primary)
-                                Spacer()
-                                Text(run.startedAt, format: .dateTime.month().day().hour().minute()).font(.caption).foregroundStyle(.secondary)
-                            }
-                            if let summary = run.summary { Text(summary).font(.callout).foregroundStyle(.secondary).textSelection(.enabled) }
-                            if let remote = run.remoteJob {
-                                LabeledContent("远程作业", value: remote.jobID).font(.caption).textSelection(.enabled)
-                            }
-                            if let code = run.exitCode { Text("退出码 \(code)").font(.caption.monospaced()).foregroundStyle(.secondary) }
-                            if let output = run.output {
-                                DisclosureGroup("查看返回内容") { codeBlock(pretty(output)) }
-                                    .font(.callout)
-                            }
-                            HStack {
-                                Button("查看日志") { NSWorkspace.shared.open(run.logURL) }
-                                if let result = run.resultURL { Button("查看结果文件") { NSWorkspace.shared.open(result) } }
-                                Spacer()
-                                if run.canStop {
-                                    Button(run.definition.externalProgram?.asyncOptions == nil ? "停止任务" : "停止跟踪") { store.stopCommand(run.id) }
-                                }
-                            }
-                        } else {
-                            Label("还没有运行记录", systemImage: "clock").foregroundStyle(.secondary)
-                            Text("点击“执行任务”后，可在这里查看状态与结果。")
-                                .font(.callout).foregroundStyle(.secondary)
-                        }
-                    }
-                }
+                TaskRunSummaryCard(run: currentRun, showHistory: showHistory,
+                    openLog: { if let run = currentRun { NSWorkspace.shared.open(run.logURL) } },
+                    openResult: { if let url = currentRun?.resultURL { NSWorkspace.shared.open(url) } },
+                    stop: { if let run = currentRun { store.stopCommand(run.id) } })
                 WorkspaceCard {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("任务信息").font(.headline)
@@ -130,15 +97,6 @@ struct TaskDetailView: View {
         }
     }
 
-    private func stateSymbol(_ state: TaskRun.State) -> String {
-        switch state {
-        case .running: return "play.circle"
-        case .waitingExternal: return "clock.arrow.circlepath"
-        case .succeeded: return "checkmark.circle"
-        case .failed, .timedOut: return "exclamationmark.circle"
-        case .cancelled, .interrupted: return "pause.circle"
-        }
-    }
     private func pretty<T: Encodable>(_ value: T) -> String {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return (try? encoder.encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? "无法显示内容"

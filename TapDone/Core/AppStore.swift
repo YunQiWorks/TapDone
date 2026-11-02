@@ -39,6 +39,13 @@ enum ActivationEdge: String, CaseIterable, Identifiable {
     }
 }
 
+/// Nonced requests let floating surfaces navigate an already-open workspace repeatedly.
+struct WorkspaceOpenRequest: Identifiable, Equatable {
+    enum Destination: Equatable { case task(String), workflow(String), activities }
+    let id = UUID()
+    let destination: Destination
+}
+
 @MainActor
 final class AppStore: ObservableObject {
     @Published private(set) var library = TaskLibrary()
@@ -52,10 +59,12 @@ final class AppStore: ObservableObject {
         return actions.filter { pinned.contains($0.id) }
     }
     func isInDock(_ id: String) -> Bool { library.dockTaskIDs.contains(id) }
+    @Published var workspaceOpenRequest: WorkspaceOpenRequest?
     @Published var message = ""
     @Published var updateInstallationPending = false
     var runningCommandCount: Int { execution.localExecutionCount }
     @Published private(set) var commandRuns: [CommandRun] = []
+    let overlayPreferences: ActivityOverlayPreferences
     let execution = TaskExecutionCoordinator()
     lazy var workflows = WorkflowRunner(execution: execution)
     lazy var activities = RunActivityCenter(execution: execution, workflows: workflows)
@@ -70,6 +79,7 @@ final class AppStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        overlayPreferences = ActivityOverlayPreferences(defaults: defaults)
         repository = TaskRepository(legacyDefaults: defaults)
         defaults.register(defaults: ["gestureEnabled": true, "edgeRange": 12.0, "dwellTime": 0.4])
         gestureEnabled = defaults.bool(forKey: "gestureEnabled")
