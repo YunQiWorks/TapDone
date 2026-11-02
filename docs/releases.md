@@ -62,7 +62,7 @@ CI 通过 xcodebuild 参数注入公钥、版本和订阅地址，覆盖本机�
 ## 发布步骤
 
 1. 写好 `release-notes/<版本号>.md`，递增 `Config/Version.xcconfig` 的版本和构建号。
-2. 提交代码并推送新的稳定标签，例如 `v0.2.0`。标签必须符合 `v数字.数字.数字`，本阶段不提供 beta 通道。
+2. 小版本提交并推送到 `main`，由版本配置变更触发发布，不创建或移动 Git 标签。当前复用已有 `v0.3.2` 作为 Release 下载入口，标题与安装包使用实际版本号；仅首位大版本变化时创建新标签。
 3. `.github/workflows/release.yml` 在 macOS runner 上运行 `scripts/release/prepare_release.py`：
    - 检查配置，校验 Sparkle 工具包 SHA-256。
    - 读取并验证现有订阅签名，确保新版本和构建号递增。
@@ -77,9 +77,9 @@ CI 通过 xcodebuild 参数注入公钥、版本和订阅地址，覆盖本机�
 
 `.github/archived-releases.json` 保存用户明确要求封存的版本标签，默认 `[]`。例如用户指定封存 `v0.2.3` 后，将其加入数组。每次发布前更新名单，清理任务按本次发布标签中的名单执行。封存版本保留 Release 和附件，但不加入自动更新订阅；订阅始终指向最新版。未封存的旧安装包会在下一次成功发布后删除。
 
-发布构建号使用 `1000 + GITHUB_RUN_NUMBER`，避免低于现有开发构建；必须一直递增。如仓库迁移或重建工作流导致计数重置，应调整基数，发布脚本会拒绝低于现有源的构建号。每次正式发布也需要更高的展示版本号。工作流串行发布，不覆盖已存在的 Release；标签已存在但无 Release 时可手动运行 workflow 并填写标签。
+发布构建号使用 `1000 + GITHUB_RUN_NUMBER`，避免低于现有开发构建；必须一直递增。如仓库迁移或重建工作流导致计数重置，应调整基数，发布脚本会拒绝低于现有源的构建号。每次正式发布也需要更高的展示版本号。工作流串行发布，从触发的提交构建；复用入口时先上传新版本安装包，再更新 Release 标题、说明和订阅。Pages 成功部署后删除旧安装包，保留最新包与封存版本。Release 说明记录真实源码提交，入口标签不代表小版本源码。手动运行时选择构建分支，并填写已有 Release 入口标签。
 
-发布流程未在本次实现中运行，也未触发应用构建或安装。待配置好 Sparkle 密钥和 Pages 后，由发布标签触发。
+推送更新后的版本配置会触发正式打包、签名和发布，不执行运行时功能验收。
 
 ## 订阅和签名
 
@@ -103,4 +103,4 @@ CI 通过 xcodebuild 参数注入公钥、版本和订阅地址，覆盖本机�
 
 官方参考：[Sparkle 接入](https://sparkle-project.org/documentation/)、[发布更新](https://sparkle-project.org/documentation/publishing/)、[GitHub Pages 工作流](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
 
-工作流手动运行时可勾选 `prepare_only`，使用所选分支完成打包和签名校验，但不创建 Release 或部署 Pages。正式发布始终使用对应标签中的源码。失败日志会显示非敏感工具输出末尾，并上传 `.release/*.log` 供排查。
+工作流手动运行时可勾选 `prepare_only`，使用所选分支完成打包和签名校验，但不创建 Release 或部署 Pages。正式发布使用触发工作流的提交源码，复用 Release 标签不移动源码标签。失败日志会显示非敏感工具输出末尾，并上传 `.release/*.log` 供排查。

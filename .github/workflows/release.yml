@@ -3,10 +3,15 @@ name: Publish TapDone
 on:
   push:
     tags: ['v[0-9]*']
+    branches: [main]
+    paths:
+      - Config/Version.xcconfig
+      - .github/workflows/release.yml
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing release tag, for example v0.2.0'
+        description: 'Existing Release tag to reuse (minor versions do not create tags)'
+        default: v0.3.2
         required: true
         type: string
       prepare_only:
@@ -27,36 +32,53 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: write
+    outputs:
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+      version: ${{ steps.metadata.outputs.version }}
     env:
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      RELEASE_TAG: ${{ inputs.tag || (github.ref_type == 'tag' && github.ref_name) || 'v0.3.2' }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.prepare_only && github.ref_name || inputs.tag || github.ref_name }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Confirm new tag
+      - name: Read release metadata
+        id: metadata
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git rev-parse --verify "refs/tags/$RELEASE_TAG"
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo 'This release already exists; existing releases are not overwritten.'
+          VERSION=$(sed -n 's/^MARKETING_VERSION = //p' Config/Version.xcconfig)
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          python3 -c 'import json, os; assert os.environ["RELEASE_TAG"] not in json.load(open(".github/archived-releases.json")), "封存版本不能作为滚动发布入口"'
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq .immutable | grep -qx true; then
+            echo 'Existing release is immutable and cannot be reused.'
             exit 1
           fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
       - name: Build ad-hoc app and sign update
         id: package
         env:
+          VERSION: ${{ steps.metadata.outputs.version }}
           SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
-          python3 scripts/release/prepare_release.py --tag "$RELEASE_TAG" --build "$((GITHUB_RUN_NUMBER + 1000))"
+          python3 scripts/release/prepare_release.py --tag "v$VERSION" --release-tag "$RELEASE_TAG" --build "$((GITHUB_RUN_NUMBER + 1000))"
       - name: Publish GitHub release
         if: ${{ !inputs.prepare_only }}
         env:
           GH_TOKEN: ${{ github.token }}
           ZIP_NAME: ${{ steps.package.outputs.zip_name }}
+          VERSION: ${{ steps.metadata.outputs.version }}
         run: |
-          gh release create "$RELEASE_TAG" ".release/dist/$ZIP_NAME" .release/dist/SHA256SUMS .release/site/appcast.xml --verify-tag --title "TapDone $RELEASE_TAG" --notes-file .release/release-notes.md
+          printf '\n源码提交：%s\n' "$GITHUB_SHA" >> .release/release-notes.md
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" ".release/dist/$ZIP_NAME" .release/dist/SHA256SUMS .release/site/appcast.xml --clobber
+            gh release edit "$RELEASE_TAG" --title "TapDone $VERSION" --notes-file .release/release-notes.md --latest
+          else
+            gh release create "$RELEASE_TAG" ".release/dist/$ZIP_NAME" .release/dist/SHA256SUMS .release/site/appcast.xml --verify-tag --title "TapDone $VERSION" --notes-file .release/release-notes.md
+          fi
       - name: Preserve build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -88,7 +110,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
   prune-releases:
-    needs: deploy-feed
+    needs: [release, deploy-feed]
     if: ${{ !inputs.prepare_only }}
     runs-on: ubuntu-latest
     permissions:
@@ -96,9 +118,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ github.sha }}
       - name: Keep latest release and explicitly archived versions
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-        run: python3 scripts/release/prune_releases.py --repository "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG"
+          RELEASE_TAG: ${{ needs.release.outputs.release_tag }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: python3 scripts/release/prune_releases.py --repository "$GITHUB_REPOSITORY" --tag "$RELEASE_TAG" --version "$VERSION"

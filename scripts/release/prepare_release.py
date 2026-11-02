@@ -69,11 +69,14 @@ def sign(tool, private_key, path, *, verify=False, signature_only=False):
     return run(command, stdin=private_key + "\n", sensitive=True).strip()
 
 
-def prepare(tag, build):
+def prepare(tag, build, release_tag=None):
     if sys.platform != "darwin":
         raise RuntimeError("发布脚本需要 macOS。")
     if not re.fullmatch(r"v\d+\.\d+\.\d+", tag) or build < 1:
         raise RuntimeError("发布标签需为 v主版本.次版本.修订号，构建号需为正整数。")
+    release_tag = release_tag or tag
+    if not re.fullmatch(r"v\d+\.\d+\.\d+", release_tag):
+        raise RuntimeError("Release 入口标签格式不正确。")
     version = tag[1:]
     public_key = required("SPARKLE_PUBLIC_KEY")
     private_key = required("SPARKLE_PRIVATE_KEY")
@@ -186,7 +189,7 @@ def prepare(tag, build):
     ET.SubElement(item, "{" + NS + "}shortVersionString").text = version
     ET.SubElement(item, "{" + NS + "}minimumSystemVersion").text = "13.0.0"
     ET.SubElement(item, "description").text = "<pre>" + html.escape(notes) + "</pre>"
-    ET.SubElement(item, "enclosure", {"url": "https://github.com/" + repository + "/releases/download/" + tag + "/" + zip_name,
+    ET.SubElement(item, "enclosure", {"url": "https://github.com/" + repository + "/releases/download/" + release_tag + "/" + zip_name,
                                     "length": str(package.stat().st_size), "type": "application/octet-stream",
                                     "{" + NS + "}edSignature": signature})
     channel.insert(0, item)
@@ -214,9 +217,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", required=True)
     parser.add_argument("--build", type=int, required=True)
+    parser.add_argument("--release-tag", help="复用的 Release 标签；不改变安装包版本")
     args = parser.parse_args()
     try:
-        prepare(args.tag, args.build)
+        prepare(args.tag, args.build, args.release_tag)
     except Exception as error:
         print("发布准备失败：" + str(error), file=sys.stderr)
         sys.exit(1)
