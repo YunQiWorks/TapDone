@@ -1,15 +1,16 @@
-# TapDone 图标 v1
+# TapDone 图标
 
-当前采用蓝色圆角底板、米白色滑行小精灵和双椭圆眼睛。此版作为暂用方案，后续继续调整。
+当前使用 v2：蓝色圆角底板、米白色卡通侧视按键、左高右低的倾斜造型和五条实心触发短线。键帽短厚，底座贴近键帽，强调轻点即响应。
 
-- `icon-concept-v1.png`：用户选定的概念预览原图。
-- `app-icon-v1.png`：用于导出应用图标的透明背景母版。
-- `../../TapDone/Resources/Assets.xcassets/AppIcon.appiconset/`：macOS 16–1024 像素图标，已配置到应用 target。
-- `../../TapDone/Resources/Assets.xcassets/MenuBarIcon.imageset/`：手工绘制的简化 SVG 轮廓，使用 template 渲染适应菜单栏深浅外观。
+- `icon-concept-v2.png`：用户确认的应用图标与菜单栏设计预览。
+- `app-icon-v2.png`：当前透明背景母版，用于导出应用图标。
+- `../../TapDone/Resources/Assets.xcassets/AppIcon.appiconset/`：macOS 16–1024 像素图标。
+- `../../TapDone/Resources/Assets.xcassets/MenuBarIcon.imageset/MenuBarIcon.svg`：当前按键版单色矢量轮廓，使用 template 渲染适应菜单栏深浅外观。
+- `icon-concept-v1.png`、`app-icon-v1.png`：旧版小精灵设计稿和母版，保留供追溯，不再用于应用。
 
-图像使用内置 image_gen 生成。透明母版的编辑提示词：
+应用图像通过内置 image_gen 从已确认的设计稿整理为透明 PNG；菜单栏为手工绘制的同造型 SVG。透明母版编辑提示词：
 
-> Prepare this EXACT approved app icon as a production asset. Preserve the blue rounded square and ivory sprite with two dark oval eyes exactly, including silhouette, orientation, colors and proportions. Remove ONLY the exterior white presentation background, replacing it with true transparency. Enlarge the icon tile proportionately to occupy 82 percent of the square canvas width, centered horizontally and vertically, leaving equal transparent margins. No redesign, no new shapes, no text, no shadows outside the tile. Output square transparent PNG.
+> Production asset extraction from the approved design sheet. Output ONLY the blue rounded-square application icon at the top as a square PNG with true transparent exterior. Preserve the compact ivory cartoon keycap side profile, thick navy outline, closely attached navy base with a narrow blue slit, left-high right-low clockwise tilt, and exactly five solid rounded activation rays. Preserve proportions and colors. Remove menu bar mockups, enlarged glyph and white exterior. Center the tile at 82 percent of canvas width with equal transparent margins. No redesign, text or exterior shadow.
 
 尺寸变体由 `sips` 从透明母版缩放导出。修改后保留 macOS appiconset 的完整 size/scale 组合。
 
