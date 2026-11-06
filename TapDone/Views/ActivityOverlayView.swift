@@ -1,4 +1,18 @@
+import AppKit
 import SwiftUI
+
+/// Blur the desktop behind the floating window, including while another app is active.
+private struct ActivityOverlayGlass: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow
+        view.blendingMode = .behindWindow
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
+}
 
 /// The compact card is shared by the live floating panel and development previews.
 struct ActivityOverlayCard: View {
@@ -51,7 +65,7 @@ struct ActivityOverlayCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.9), in: RoundedRectangle(cornerRadius: 12))
+        .background { ActivityOverlayGlass().clipShape(RoundedRectangle(cornerRadius: 12)) }
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.primary.opacity(0.06)))
     }
 
@@ -148,7 +162,7 @@ struct ActivityOverlayView: View {
                 Spacer()
             }.padding(.horizontal, 14).padding(.vertical, 10)
         }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 17))
+        .background { ActivityOverlayGlass().clipShape(RoundedRectangle(cornerRadius: 17)) }
         .overlay(RoundedRectangle(cornerRadius: 17).strokeBorder(Color.accentColor.opacity(0.3)))
     }
 }
@@ -158,7 +172,7 @@ struct ActivityOverlaySettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             Text("任务运行浮窗").font(.headline)
-            Text("默认显示在屏幕顶部居中、菜单栏下方 64 点。修改会立即移动已显示的浮窗，位置将在重启后保留。")
+            Text("默认显示在屏幕顶部居中、菜单栏下方 64 点。可拖动浮窗空白处调整本次使用的位置；修改下方设置会重新定位，设置将在重启后保留。")
                 .font(.callout).foregroundStyle(.secondary)
             Form {
                 Picker("显示位置", selection: $preferences.position) {

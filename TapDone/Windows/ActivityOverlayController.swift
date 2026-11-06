@@ -8,6 +8,10 @@ private final class ActivityStatusPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+private final class ActivityHostingView<Content: View>: NSHostingView<Content> {
+    override var mouseDownCanMoveWindow: Bool { true }
+}
+
 /// One non-activating panel, independent of the workspace and edge Dock.
 @MainActor
 final class ActivityOverlayController {
@@ -24,6 +28,8 @@ final class ActivityOverlayController {
     private var subscriptions = Set<AnyCancellable>()
     private var displayID: NSNumber?
     private var installedSize = CGSize.zero
+    private var draggedOrigin: NSPoint?
+    private var isLayingOut = false
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "dev.sidetap.SideTap", category: "ActivityOverlay")
 
     init(model: ActivityOverlayModel, preferences: ActivityOverlayPreferences? = nil, task: @escaping (RunActivity) -> QuickAction?,
@@ -46,12 +52,22 @@ final class ActivityOverlayController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.isMovable = false
+        panel.isMovable = true
+        panel.isMovableByWindowBackground = true
+        NotificationCenter.default.publisher(for: NSWindow.didMoveNotification, object: panel)
+            .sink { [weak self] _ in
+                guard let self, !self.isLayingOut else { return }
+                self.draggedOrigin = self.panel.frame.origin
+                self.displayID = self.panel.screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+            }.store(in: &subscriptions)
         model.$items.combineLatest(model.$manuallyPresented)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.layout() }.store(in: &subscriptions)
         self.preferences.$position.combineLatest(self.preferences.$verticalInset)
-            .receive(on: DispatchQueue.main).sink { [weak self] _ in self?.layout() }.store(in: &subscriptions)
+            .receive(on: DispatchQueue.main).sink { [weak self] _ in
+                self?.draggedOrigin = nil
+                self?.layout()
+            }.store(in: &subscriptions)
         self.preferences.$revealRequest.dropFirst().compactMap { $0 }
             .receive(on: DispatchQueue.main).sink { [weak self] _ in self?.reveal() }.store(in: &subscriptions)
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
@@ -70,6 +86,8 @@ final class ActivityOverlayController {
     }
 
     private func layout() {
+        isLayingOut = true
+        defer { isLayingOut = false }
         guard !model.items.isEmpty || model.manuallyPresented else {
             panel.orderOut(nil); displayID = nil
             logger.debug("Hidden: no visible items and no explicit presentation request")
@@ -88,7 +106,7 @@ final class ActivityOverlayController {
             + CGFloat(max(0, model.items.count - 1)) * 10
         let requestedInset = CGFloat(preferences.verticalInset)
         let bodyHeight = min(max(60, min(600, available.height - requestedInset - 100)), model.items.isEmpty ? 80 : estimatedHeight)
-        let hostingView = NSHostingView(rootView: ActivityOverlayView(model: model, contentHeight: bodyHeight,
+        let hostingView = ActivityHostingView(rootView: ActivityOverlayView(model: model, contentHeight: bodyHeight,
             task: task, image: image, phase: phase, details: details, openLog: openLog, stop: stop, showActivities: showActivities)
             .frame(width: width))
         // A single card uses its actual content height, without collection chrome or blank space.
@@ -106,7 +124,11 @@ final class ActivityOverlayController {
         }
         let inset = min(requestedInset, max(12, available.height - height - 12))
         let y = preferences.position.isTop ? available.maxY - height - inset : available.minY + inset
-        panel.setFrame(NSRect(x: x, y: y, width: width, height: height), display: true)
+        let origin = draggedOrigin.map {
+            NSPoint(x: min(max($0.x, available.minX), available.maxX - width),
+                    y: min(max($0.y, available.minY), available.maxY - height))
+        } ?? NSPoint(x: x, y: y)
+        panel.setFrame(NSRect(origin: origin, size: size), display: true)
         // Non-key panel: foreground its status without activating the app or keyboard focus.
         panel.alphaValue = 1
         panel.contentView?.layoutSubtreeIfNeeded()

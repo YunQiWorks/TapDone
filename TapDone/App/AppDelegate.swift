@@ -109,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func rebuildTaskMenu(_ menu: NSMenu) {
         menu.removeAllItems()
-        let settings = menu.addItem(withTitle: "设置…", action: #selector(showSettings), keyEquivalent: ",")
+        let settings = menu.addItem(withTitle: "主界面", action: #selector(showSettings), keyEquivalent: ",")
         settings.target = self
         let activity = menu.addItem(withTitle: "任务运行状态…", action: #selector(showActivityOverlay), keyEquivalent: "")
         activity.target = self
@@ -118,7 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         update.isEnabled = updates.canCheck
         menu.addItem(.separator())
         if store.categories.isEmpty {
-            let empty = menu.addItem(withTitle: "暂无任务，请在设置中添加", action: nil, keyEquivalent: "")
+            let empty = menu.addItem(withTitle: "暂无任务，请在主界面中添加", action: nil, keyEquivalent: "")
             empty.isEnabled = false
         }
         for category in store.categories {
